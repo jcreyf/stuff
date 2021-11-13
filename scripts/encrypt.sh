@@ -279,9 +279,10 @@ processFile()
 #      _same=$([ "$_pwd" == "$_encrypted" ] && echo true || echo false)
 #    else
 #log "pwd '$_pwd' is not encoded!"
-      _encrypted=$(encrypt "$_pwd")
-      _decrypted=$(decrypt "$_encrypted")
-      _same=$([ "$_pwd" == "$_decrypted" ] && echo true || echo false)
+      _encrypted=$(decrypt "$_pwd")
+      _decrypted=$(encrypt "$_encrypted")
+      _same=True
+#      _same=$([ "$_pwd" == "$_encrypted" ] && echo true || echo false)
 #    fi
 
     # All is good if the decoded and decrypted string is the same as the password:
