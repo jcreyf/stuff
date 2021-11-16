@@ -1,0 +1,177 @@
+#!/bin/bash
+
+#
+# Function for a dynamic Git prompt:
+#
+function git_prompt() {
+  local _url=$(git config --get remote.origin.url 2>/dev/null)
+  # Only continue if the current directory is under git control
+  if [[ ${_url} != "" ]] ; then
+    # Lets convert the url to http so that we can open it in a web browser
+    _url=$(echo $_url | sed 's/git@github.nike.com:/https:\/\/github.nike.com\//' | sed 's/\.git//')
+    # Remove potential userID and developer token:
+    _url=$(echo $_url | sed 's|https://.*@|https://|g')
+    local _branch=$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
+    if [ "${_branch}" == "master" ] ; then
+      _branch="\e[41;93m ${_branch} \e[0m"
+    else
+      _branch="\e[1;35m ${_branch} \e[0m"
+    fi
+    local _tag=$(git describe 2>/dev/null)
+    echo "[\e[1;37mGit -> \e[90;3m${_url}\e[0m [branch:${_branch} - tag: ${_tag}]\n"
+  fi
+}
+
+
+#
+# Function to download and track all branches in the remote repository.
+# Clean  them up and keep in sync through: git fetch --prune
+#
+function GitTrackAllBranches {
+  local _remoteBranches=$(git branch -r | grep -v '\->')
+  local _localBranches=$(git branch)
+  local _update=false
+  for branch in ${_remoteBranches[@]} ; do
+    local _branchName=${branch#origin/}
+    if [[ "${_localBranches[@]}" =~ "${_branchName}" ]] ; then
+      echo "branch already tracking locally: ${_branchName}"
+    else
+      echo "setting up branch: ${_branchName}"
+      cmd=$(git branch --track "${branch#origin/}" "$branch")
+      case $? in
+          0) _update=true ;;
+        128) echo "branch already exists!" ;;
+      esac
+    fi
+  done
+  # Pull down everything if we added a new branch to local
+  if $_update ; then
+    echo ""
+    git pull --all -v
+  fi
+}
+
+
+#
+# Function to quickly check-in changes.
+#
+function GitCheckIn {
+  local _description="$1"
+  local _branch=$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
+  # List files that have been: deleted, modified, new (exclude whatever the .gitignore file has marked)
+  local _files=($(git ls-files -dmo --exclude-standard))
+  if [[ ${#_files[@]} -eq 0 ]] ; then
+    echo "Nothing to check in"
+  else
+    # First check and see if there are changes in this branch remotely that we haven't pulled down yet.
+    # In most cases, this will be an updated Terraform statefile that got pushed into the branch by the
+    # Terraform CI/CD pipeline.
+    # First pull those changes local before trying to push any changes we may have in the local repo.
+    git fetch origin ${_branch} 2>/dev/null
+    # This will return something like this if there is a change in the remote branch:
+    #   _statefiles/fusion_global/nonprod/global.tfstate
+    local _changes=($(git diff --name-only HEAD..origin/${_branch}))
+    if [ ${#_changes[@]} -gt 0 ] ; then
+      echo "${#_changes[@]} remote changes to pull down first!"
+      echo "---"
+      for _change in ${_changes[*]}
+      do
+        echo "  remote change: ${_change}"
+      done
+      echo "---"
+      echo "run: git pull"
+    else
+      # We're good to push local changes to the remote repo:
+      echo "Changed objects:"
+      echo "---------------"
+      # Some mumbo jumbo to convert each record delimiter into a new line (and then restoring to the original setting):
+      local _OLDIFS="$IFS" ; IFS=$'\n'
+      echo "${_files[*]}"
+      IFS=$_OLDIFS
+      # This works too to display each file on a new line:
+  #    echo ${_files[*]} | tr ' ' '\n'
+      echo "---------------"
+      # Validate JSON files (if any):
+      local _tmp=""
+      local _error=false
+      for _file in ${_files[*]}
+      do
+        local _ext=${_file##*.}
+        if [[ "$_ext" == "json" ]] ; then
+          # We may be in the process of deleting this file from git.  Do not try to parse it if it's no longer on disk!
+          if [ -f $_file ] ; then
+            printf "validating json-file: %s -> " "$_file"
+            _tmp=$(python -mjson.tool $_file >/dev/null)
+            if [ "$?" -eq 0 ] ; then
+              _tmp="ok"
+            else
+              _error=true
+            fi
+            printf "%s\n" "$_tmp"
+          fi
+        fi
+      done
+      if $_error; then 
+        echo "There was an error with a JSON file!  Not checking in anything until that's fixed!"
+        return 1
+      fi
+      if [[ "X$_description" == "X" ]] ; then
+        echo "Need to provide a description for the check-in!"
+        echo 'ex.: git_checking "Fixing syntax errors"'
+      else
+        git add .
+        git commit -m "$_description"
+        git push --set-upstream origin $_branch
+      fi
+    fi
+  fi
+}
+
+#
+# Just a helper function to show all the commands that need to be run to merge a branch to master and cleanup on both sides (remote and local)
+#
+function GitMerge {
+  local _branch="${1:-<branch>}"
+  # Check if we're in a Git directory.  Exit out if not!
+  git branch --show-current 2>&1 >/dev/null
+  if [ $? -ne 0 ] ; then
+    echo "You're not in a Git directory!"
+  else
+    local _currentBranch=$(git branch --show-current 2>/dev/null)
+    echo "Your current branch: $_currentBranch"
+    if [ "$_branch" = "<branch>" ] && [ "$_currentBranch" != "master" ] ; then
+      _branch=$_currentBranch
+    fi
+    echo "Merging development branch '$_branch' into master."
+    echo " 1. make sure you're local repo is up to date and that you're in the 'master' branch:"
+    if [[ $_currentBranch != "master" ]] ; then
+      echo "    git pull"
+      echo "    git checkout master"
+    fi
+    echo "    git pull"
+    echo " 2. merge the branch into master:"
+    echo "    git merge $_branch"
+    echo "    git push"
+    echo " 3. delete the local and remote development branches:"
+    echo "    git branch -d $_branch"
+    echo "    git push -d origin $_branch"
+  fi
+  echo ""
+}
+
+
+#
+# Set up a bunch of git aliases:
+#
+alias git_branches_list='git branch -a'
+alias git_branches_notmerged='git branch -a --no-merged'
+alias git_branches_merged='git branch -a --merged'
+alias git_branches_track_all='GitTrackAllBranches'
+alias git_branches_track_clean='git fetch --prune'    # Remove branches that we are tracking locally but that no longer exist remotely
+alias git_reflog='git reflog'
+alias git_log='git log'
+alias git_search_log='git log --grep='
+alias git_search_log2='git log --oneline | grep '
+alias git_checkin='GitCheckIn'
+alias git_merge='GitMerge'
+alias git_check='ssh -T git@github.com'

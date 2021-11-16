@@ -1,0 +1,249 @@
+#!/bin/bash
+#
+# .bashrc is getting sourced in for all types of shells.
+# .bash_profile is only getting sourced in as part of a user logging on to the system.
+#
+# Since there's no prompt in non-interactive shells, we probably shouldn't set anything to configure the
+# screen in non-interactive shells (like setting the prompt; setting coloring; ...).  We should move that
+# stuff into .bashrc
+#
+# .bashrc sources in this file .bashrc_jcreyf only if the shell that's being opened is an interactive shell.
+#   case $- in
+#     *i*)
+#       source ~/.bashrc_jcreyf
+#       ;;
+#   esac
+#
+
+# Source in git stuff
+# Setting the prompt should probably go there too!
+source ~/.bashrc_git
+
+#
+# Geany wrapper script.
+# Doing an extensive find if "*" is passed in.
+# Remember that there's a significant difference between running: 'edit *' and 'edit "*"'
+# 'edit *'   -> * gets processed before the script is called and translates into a list of files in the current directory that match "*"
+# 'edit '*'" -> "*" is passed in as a litteral string argument for the script.  There's no pre-processing on it.
+#
+# Passing "all" as argument ('edit all') will translate into: 'edit "*"'
+# We have to open Geanny in a different way on MacOS since that seems to behave differently.
+#
+function edit() {
+  local _args="$*"
+  local _OS="$(uname -s)"
+  # if '"all" is passed, then replace with "*":
+  if [ "$_args" = "all" ] ; then
+    echo "edit 'all' files!"
+    _args="*"
+  fi
+  local _filesToOpen=$_args
+  # See if we got an asterisk in the argument:
+  if [[ "$_args" =~ .*"*".* ]] ; then
+    echo "selecting files..."
+    _filesToOpen=$(find . -type f -name "$_args")
+  fi
+  # The default command line for Linux hosts:
+  local _geanyApp="geany -i"
+  # Display this if the list is not empty:
+  [ "$_filesToOpen" != "" ] && printf "Files to open in Geany:\n${_filesToOpen}\n"
+  # Generate a different command line on Mac hosts: (Mac is opening the app fine but leaves it in the background.  We want it to open in the foreground!)
+  if [[ "$_OS" = "Darwin" ]] ; then
+    _geanyApp="open -n -a /Applications/Geany.app/Contents/MacOS/geany"
+  fi
+  # Piping all output from geany to null since we were getting quite a few Gtk-WARNING messages at some point that were out of our control:
+  ${DEBUG:-false} && echo "$_geanyApp ${_filesToOpen}"
+  $_geanyApp $_filesToOpen &>/dev/null &
+}
+
+
+#
+# Function for a dynamic directory prompt (because of Mac OS showing a ~ for home and not the full home directory)
+# (this function is called and the prompt is updated each time we cd into another directory)
+#
+dir_prompt() {
+  echo "\e[1;33m${MACHINE}:$(pwd)/\e[0m"
+}
+
+#-----
+# Set the prompt:
+MACHINE=$(hostname -f)
+ORIGINAL_USER=$(who am i | awk '{print $1}')
+CURRENT_USER=$(whoami)
+
+# The prompt needs to be regenerated each time we change directories.
+# Turns out this is best done through the PROMPT_COMMAND env variable since we apparently lose dynamic formatting capabilities if only using PS1
+export PS2='++> '
+export PROMPT_COMMAND='PS1="\n\["$(dir_prompt)"\]\n$(git_prompt)$(terraform_prompt)${ORIGINAL_USER} as ${CURRENT_USER}> "'
+
+# Also set the prompt to save all my executed commands per month in ~/.bash-history-YYYYMM.log
+# This command:
+#   /> history 1
+# returns something like:
+#     1029  My command
+# We need to remove that 1st column, which is a counter.
+# Remove the prepending spaces; then cut out the 1st field up to the 1st space; then remove potential more spaces in front of the command.
+#   /> history 1 | sed 's/ //' | cut -d' ' -f2- | sed 's/ //'
+# returns:
+#   My command
+export PROMPT_COMMAND=${PROMPT_COMMAND}' ; if [ "$(id -u)" -ne 0 ]; then echo "$(date "+%Y-%m-%d.%H:%M:%S"),$(history 1 | sed "s/ //" | cut -d" " -f2- | sed "s/ //")" >> ~/.bash-history-$(date "+%Y-%m").log; fi'
+#
+# End of prompt
+#------
+
+
+# Set the command-line editor.  Using <CTRL>x <CTRL>e will open the current command in this editor.
+export EDITOR=vi
+
+# Set the colors for the output of the ls-command
+#   http://www.bigsoft.co.uk/blog/2008/04/11/configuring-ls_colors
+# This is LSCOLORS for some reason on Mac instead of LS_COLORS
+#export LS_COLORS='rs=0:di=36;1;27:ln=38;5;51:mh=44;38;5;15:pi=40;38;5;11:so=38;5;13:do=38;5;5:bd=48;5;232;38;5;11:cd=48;5;232;38;5;3:or=48;5;232;38;5;9:mi=05;48;5;232;38;5;15:su=48;5;196;38;5;15:sg=48;5;11;38;5;16:ca=48;5;196;38;5;226:tw=48;5;10;38;5;16:ow=48;5;10;38;5;21:st=48;5;21;38;5;15:ex=34;0;31:*.log=38;5;9'
+
+# Set man-page colloring
+export LESS=-RXFi
+export LESS_TERMCAP_mb=$'\E[01;31m'       # begin blinking
+export LESS_TERMCAP_md=$'\E[01;38;5;74m'  # begin bold
+export LESS_TERMCAP_me=$'\E[0m'           # end mode
+export LESS_TERMCAP_so=$'\E[01;44;33m'    # begin standout-mode - info box
+export LESS_TERMCAP_se=$'\E[0m'           # end standout-mode
+export LESS_TERMCAP_us=$'\E[04;38;5;146m' # begin underline
+export LESS_TERMCAP_ue=$'\E[0m'           # end underline
+
+#
+# Slack integration
+#     https://api.slack.com/web
+#   Get API token:
+#     https://api.slack.com/custom-integrations/legacy-tokens
+#   Node app to keep you in "active"-state:
+#     https://github.com/eskerda/slack-keep-presence
+#
+export SLACK_TOKEN=xoxp-31918398131-77197137031-463625159699-cc2518ecd54eb4b6e7f30a5ecd5c1d9c
+export SLACK_PRESENCE_BIN=/data/tools/slack-keep-presence/node_modules/.bin/
+
+#
+# Set specific environment variables
+#
+export JAVA_HOME=/data/tools/java/jdk1.8.0_151
+# Maven (bundled with Netbeans)
+#export M2_HOME=/data/tools/netbeans/8.2/java/maven
+# The bundled Maven in Netbeans cannot be used in Weblogic projects.  It's too old!
+export M2_HOME=/data/tools/apache-maven-3.5.2
+export M2=${M2_HOME}/bin
+#export MAVEN_OPTS="-Xms256m -Xmx512m"
+#export SVN_EDITOR='/bin/vi'
+
+PATH=${PATH}:~/bin
+PATH=${PATH}:/Applications/Geany.app/Contents/MacOS
+#PATH=${PATH}:${JAVA_HOME}/bin
+#PATH=${PATH}:${M2}
+PATH=~/Documents/scripts:${PATH}
+PATH=/Users/JCREYF/data/scripts:${PATH}
+#PATH=~/.aws:${PATH}
+PATH=${PATH}:/Users/JCREYF/data/nike/git/fusion/terraform/_automation/jenkins/PRD/scripts
+#PATH=${PATH}:${SLACK_PRESENCE_BIN}
+PATH=${PATH}:~/.joplin-bin/bin/
+export PATH
+
+#
+# Set the terminal's IP address for X forwarding
+#
+#MYIP=`who am i | awk '{print $5}' | sed -e s/\(// -e s/\)//`
+#MYIP_LEN=`echo $MYIP | wc -c `
+#if [ $MYIP_LEN -lt 7 ]
+#then
+#  # This is not looking like an IP address
+#  DISPLAY=:0
+#  echo "Setting the DISPLAY variable to: '${DISPLAY}'"
+#else
+#  # Looks like we may have a valid IP address (no guarantees though!)
+#  DISPLAY=${MYIP}:0
+#  echo "Setting the DISPLAY variable to: '${DISPLAY}'"
+#fi
+
+# Command to kill processes based on name (or parts of name). [ex. 'dood firefox' to kill all firefox processes]
+# This is declared as a function instead of an alias because we need to pass in an argument during runtime ($@).
+# Using $@ in an alias will get evaluated at the time the alias is created and not at runtime!
+function dood() { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 | xargs kill ;} 
+function dood_toon() { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 ;} 
+
+# Divide 2 numbers at the command line and display decimals
+#alias div='echo $1 / $2 | bc -l'
+#alias div="awk '{ print $1/$2 }'"
+alias div="echo $1 $2 | awk '{print $1/$2}'"
+
+#
+# Manipulate Homebrew behavior:
+#
+# Don't update that damn often! Default is to update every 300 seconds (5 minutes).  We want to update at most once a day (60 seconds x 60 minutes x 8 hours = 28800 seconds)
+export HOMEBREW_AUTO_UPDATE_SECS=28800
+# We can disable auto-updates if the daily update is also too much:
+#export HOMEBREW_NO_AUTO_UPDATE=true
+
+#
+# User specific aliases and functions
+#
+alias lastlogon='/usr/bin/cut -d: -f1 /etc/passwd | /usr/bin/xargs /usr/bin/finger -m '
+alias ls='ls -G '
+alias la='ls -la -G '
+alias lsg='ls | grep --color -i '
+alias lag='ls -la | grep --color -i '
+alias lad='ls -la | grep --color ^d '
+alias ldir='ls -la | grep --color ^d '
+alias lsd='ls -la | grep --color ^d'
+alias laf='ls -la | grep --color -v ^d'
+alias lfile='ls -la | grep --color -v ^d'
+alias lsf='ls -la | grep --color -v ^d'
+alias psg='ps -ef | grep -v grep | grep --color -i '
+alias dnfg='dnf list | grep --color -i '
+alias envg='env | grep --color -i '
+alias aliasg='alias | grep --color -i '
+alias findg='find . -print0 | xargs -0 grep --color -i '
+alias nohistory='unset HISTFILE'
+alias listmem='ps -e -o pid,vsz,comm= | sort -n -k 2'
+alias top='/usr/local/bin/htop'
+alias typora="open -a typora $0"
+alias vscode="/usr/local/bin/code "
+
+# We need to override the ssh command on Mac because of how my userid was set up :-(
+# It's been setup on the Mac with all uppercase (JCREYF) instead of the lowercase as it is everywhere else (jcreyf)
+# I've tried to add smarts to the ssh config-file but not successful.  Instead of that, I'm now adding smarts in a wrapper script:
+if [[ "$(uname -s)" = "Darwin" ]] ; then
+  alias ssh="~/.ssh/doSSH.sh"
+fi
+
+# Start the Joplin Desktop app:
+alias jopling-desktop='open -a joplin'
+# Start Joplin Desktop notes app in debug mode:
+alias joplin-desktop-debug='open -a joplin --args --debug --log-level debug && tail -f ~/.config/joplin-desktop/log.txt'
+
+# Specialized search script to display all lines in a log block.
+# All log-lines start with "####<" and can spread over multiple lines with newline characters in-between.
+# Grepping for a specific string will only return the exact line of where the string is found.
+# This search script will return the full log block (removing all newlines; replacing them with double pipe characters; adding a newline
+# in front of all '####<'; running a grep to find all blocks that have the string and then replacing all double pipe characters with
+# newlines to reconstruct the block.
+#searchLog()
+#{
+#  perl -ne 'chomp; print "$_||";' $2 | sed 's/####</\n####</g' | grep -i "$1" | sed 's/||/\n/g'
+#}
+#alias searchlog=searchLog
+
+#
+# JCREYF - The pswls command gives a list of processes for a specific Weblogic server name.
+#          It will color code the name of the server in the process on screen to help find the occurence.
+#          Use like: /> pswls adminserver
+#
+#function pswls() {
+#  eval "/bin/ps -ef | /bin/grep -v grep | /bin/grep --color -i \"weblogic.name=[^ ]*${@}\""
+#}
+
+#
+# Java stuff:
+#
+export JAVA_8_HOME=$(/usr/libexec/java_home -v1.8)
+export JAVA_16_HOME=$(/usr/libexec/java_home -v16)
+alias java8='export JAVA_HOME=$JAVA_8_HOME'
+alias java16='export JAVA_HOME=$JAVA_16_HOME'
+# default to Java 16:
+java16
