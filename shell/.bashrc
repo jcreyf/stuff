@@ -39,8 +39,7 @@ case $- in
 *i*)
   # This is an interactive shell.  Source in the whole sjaboem (set up in different file) ...
   . ~/.bashrc_jcreyf
-  . ~/.bashrc_home
-  . ~/.bashrc_nike
+  . ~/.bashrc_git
   ;;
 esac
 
@@ -84,3 +83,19 @@ export LSCOLORS=Gxfxcxdxbxegedabagacad
 #st=48;05;21;38;5;15:\
 #ex=34;00;31:\
 #*.log=38;05;9"
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/home/jcreyf/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/home/jcreyf/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/home/jcreyf/anaconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/home/jcreyf/anaconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+

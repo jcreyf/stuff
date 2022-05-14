@@ -19,6 +19,27 @@
 # Setting the prompt should probably go there too!
 source ~/.bashrc_git
 
+
+#
+# Function for a dynamic Python Anaconda prompt:
+#
+function python_prompt() {
+  local _condaInfo=$(conda info --json 2>/dev/null)
+  # Only continue if the current directory is under git control
+  if [[ ${_condaInfo} != "" ]] ; then
+    local _activeEnv=$(echo $_condaInfo | jq -r ".active_prefix_name")
+#    local _pythonVer=$(echo $_condaInfo | jq -r ".python_version")
+    local _pythonVer=$(python --version)
+    if [ "${_activeEnv}" == "base" ] ; then
+      _env="\e[41;93m ${_activeEnv} \e[0m"
+    else
+      _env="\e[1;35m ${_activeEnv} \e[0m"
+    fi
+    echo "[\e[1;37mConda -> [env:${_env} - ${_pythonVer}]\n"
+  fi
+}
+
+
 #
 # Geany wrapper script.
 # Doing an extensive find if "*" is passed in.
@@ -113,25 +134,14 @@ export LESS_TERMCAP_ue=$'\E[0m'           # end underline
 #
 # Set specific environment variables
 #
-export JAVA_HOME=/data/tools/java/jdk1.8.0_151
-# Maven (bundled with Netbeans)
-#export M2_HOME=/data/tools/netbeans/8.2/java/maven
-# The bundled Maven in Netbeans cannot be used in Weblogic projects.  It's too old!
-export M2_HOME=/data/tools/apache-maven-3.5.2
-export M2=${M2_HOME}/bin
-#export MAVEN_OPTS="-Xms256m -Xmx512m"
-#export SVN_EDITOR='/bin/vi'
-
 PATH=${PATH}:~/bin
-PATH=${PATH}:/Applications/Geany.app/Contents/MacOS
-#PATH=${PATH}:${JAVA_HOME}/bin
-#PATH=${PATH}:${M2}
 PATH=~/Documents/scripts:${PATH}
-PATH=/Users/JCREYF/data/scripts:${PATH}
-#PATH=~/.aws:${PATH}
-PATH=${PATH}:/Users/JCREYF/data/nike/git/fusion/terraform/_automation/jenkins/PRD/scripts
-#PATH=${PATH}:${SLACK_PRESENCE_BIN}
+PATH=/home/jcreyf/data/scripts:${PATH}
 PATH=${PATH}:~/.joplin-bin/bin/
+# Python packages location that were installed through 'pip install':
+PATH=~/.local/bin:${PATH}
+# Android development
+PATH=${PATH}:~/.buildozer/android/platform/android-sdk/platform-tools/
 export PATH
 
 #
