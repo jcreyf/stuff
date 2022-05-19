@@ -1,0 +1,15 @@
+[credential "https://github.com/jcreyf_nike"]
+	helper = store --file ~/.git_credentials_nike_personal
+	helper = cache --timeout 3000
+	useHttpPath = true
+[credential "https://github.com/nike-fusion"]
+	helper = store --file ~/.git_credentials_nike_teams
+	helper = cache --timeout 3000
+	useHttpPath = true
+[credential "https://github.com/jcreyf"]
+	helper = store --file ~/.git_credentials_personal
+	helper = cache --timeout 3000
+	useHttpPath = true
+
+[user]
+	name = Jo Creyf
