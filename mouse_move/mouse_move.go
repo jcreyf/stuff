@@ -15,6 +15,14 @@ package main
 		go get gopkg.in/yaml.v3
 			-> /Users/JCREYF/data/development/go/externals/src/gopkg.in/yaml.v3/
 
+	Build the app:
+		go build mouse_move.go
+
+	Run it as a process in the background:
+		nohup ./mouse_move 2>&1 > mouse.log &
+
+	Run it as a process in the background through launchd:
+		-> see details in the com.jocreyf.mouse_move.plist file
 */
 
 import (
