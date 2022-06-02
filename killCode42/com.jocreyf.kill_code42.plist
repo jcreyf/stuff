@@ -1,0 +1,45 @@
+<!--
+    On a Mac, copy this file to:
+        ~/Library/LaunchAgents/
+
+    Lint the file and make sure it's good:
+        /> plutil -lint ~/Library/LaunchAgents/com.jocreyf.kill_code42.plist
+            com.jocreyf.kill_code42.plist: OK
+
+    See if we already have a launchd entry for this app:
+        /> launchctl list | grep kill_code42
+
+    Load the config in launchd when ready to have the app run in the background:
+    (also unload and reload again when changes are made to the config!)
+        /> launchctl unload ~/Library/LaunchAgents/com.jocreyf.kill_code42.plist
+        /> launchctl load ~/Library/LaunchAgents/com.jocreyf.kill_code42.plist
+
+    Start the app in a background process (or stop it):
+    (app output is sent to '/var/log/system.log'.  Just grep for 'kill_code42')
+        /> launchctl start com.jocreyf.kill_code42
+        /> launchctl stop com.jocreyf.kill_code42
+        /> launchctl restart cm.jocreyf.kill_code42
+
+    Install the "launchcontrol" gui tool if you want something better to debug launchd problems:
+        /> brew install launchcontrol
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jocreyf.kill_code42</string>
+    <key>Program</key>
+    <string>/Users/JCREYF/data/jcreyf/git/jcreyf/stuff/killCode42/killCode42.sh</string>
+    <!-- Run when the PC boots and hourly thereafter (just in case the process got started again) -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <!-- Have the output of the app redirected to this file -->
+    <key>StandardErrorPath</key>
+    <string>/Users/JCREYF/tmp/kill_code42.log</string>
+    <key>StandardOutPath</key>
+    <string>/Users/JCREYF/tmp/kill_code42.log</string>
+</dict>
+</plist>
