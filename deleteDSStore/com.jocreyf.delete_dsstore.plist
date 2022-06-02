@@ -1,0 +1,50 @@
+<!--
+    On a Mac, copy this file to:
+        ~/Library/LaunchAgents/
+
+    Lint the file and make sure it's good:
+        /> plutil -lint ~/Library/LaunchAgents/com.jocreyf.delete_dsstore.plist
+            com.jocreyf.delete_dsstore.plist: OK
+
+    See if we already have a launchd entry for this app:
+        /> launchctl list | grep delete_dsstore
+
+    Load the config in launchd when ready to have the app run in the background:
+    (also unload and reload again when changes are made to the config!)
+        /> launchctl unload ~/Library/LaunchAgents/com.jocreyf.delete_dsstore.plist
+        /> launchctl load ~/Library/LaunchAgents/com.jocreyf.delete_dsstore.plist
+
+    Start the app in a background process (or stop it):
+    (app output is sent to '/var/log/system.log'.  Just grep for 'delete_dsstore')
+        /> launchctl start com.jocreyf.delete_dsstore
+        /> launchctl stop com.jocreyf.delete_dsstore
+        /> launchctl restart cm.jocreyf.delete_dsstore
+
+    Install the "launchcontrol" gui tool if you want something better to debug launchd problems:
+        /> brew install launchcontrol
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jocreyf.delete_dsstore</string>
+    <key>Program</key>
+    <string>/Users/JCREYF/data/jcreyf/git/jcreyf/stuff/deleteDSStore/deleteDSStore.sh</string>
+    <!-- Run just once a day at a specific time -->
+    <key>StartCalendarInterval</key>
+    <array>
+      <dict>
+        <key>Hour</key>
+        <integer>11</integer>
+        <key>Minute</key>
+        <integer>5</integer>
+      </dict>
+    </array>
+    <!-- Have the output of the app redirected to this file -->
+    <key>StandardErrorPath</key>
+    <string>/Users/JCREYF/tmp/delete_dsstore.log</string>
+    <key>StandardOutPath</key>
+    <string>/Users/JCREYF/tmp/delete_dsstore.log</string>
+</dict>
+</plist>
