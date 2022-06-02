@@ -13,12 +13,16 @@
     (also unload and reload again when changes are made to the config!)
         /> launchctl unload ~/Library/LaunchAgents/com.jocreyf.mouse_move.plist
         /> launchctl load ~/Library/LaunchAgents/com.jocreyf.mouse_move.plist
-    
+
     Start the app in a background process (or stop it):
     (app output is sent to '/var/log/system.log'.  Just grep for 'mouse_move')
         /> launchctl start com.jocreyf.mouse_move
         /> launchctl stop com.jocreyf.mouse_move
         /> launchctl restart cm.jocreyf.mouse_move
+
+    Install the "launchcontrol" gui tool if you want something better to debug launchd problems:
+        /> brew install launchcontrol
+
 -->
 
 <?xml version="1.0" encoding="UTF-8"?>
@@ -36,8 +40,8 @@
     <integer>3600</integer>
     <!-- Have the output of the app redirected to this file -->
     <key>StandardErrorPath</key>
-    <string>/var/log/mouse_move.err</string>
+    <string>/Users/JCREYF/tmp/mouse_move.log</string>
     <key>StandardOutPath</key>
-    <string>/var/log/mouse_move.out</string>
+    <string>/Users/JCREYF/tmp/mouse_move.log</string>
 </dict>
 </plist>
