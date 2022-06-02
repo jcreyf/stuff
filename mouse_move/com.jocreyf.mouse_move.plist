@@ -1,0 +1,43 @@
+<!--
+    On a Mac, copy this file to:
+        ~/Library/LaunchAgents/
+
+    Lint the file and make sure it's good:
+        /> plutil -lint ~/Library/LaunchAgents/com.jocreyf.mouse_move.plist
+            com.jocreyf.mouse_move.plist: OK
+
+    See if we already have a launchd entry for this app:
+        /> launchctl list | grep mouse_move
+
+    Load the config in launchd when ready to have the app run in the background:
+    (also unload and reload again when changes are made to the config!)
+        /> launchctl unload ~/Library/LaunchAgents/com.jocreyf.mouse_move.plist
+        /> launchctl load ~/Library/LaunchAgents/com.jocreyf.mouse_move.plist
+    
+    Start the app in a background process (or stop it):
+    (app output is sent to '/var/log/system.log'.  Just grep for 'mouse_move')
+        /> launchctl start com.jocreyf.mouse_move
+        /> launchctl stop com.jocreyf.mouse_move
+        /> launchctl restart cm.jocreyf.mouse_move
+-->
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jocreyf.mouse_move</string>
+    <key>Program</key>
+    <string>/Users/JCREYF/data/jcreyf/git/jcreyf/stuff/mouse_move/mouse_move</string>
+    <!-- Run when the PC boots and hourly thereafter (just in case it got killed for some reason) -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <!-- Have the output of the app redirected to this file -->
+    <key>StandardErrorPath</key>
+    <string>/var/log/mouse_move.err</string>
+    <key>StandardOutPath</key>
+    <string>/var/log/mouse_move.out</string>
+</dict>
+</plist>
