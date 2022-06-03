@@ -26,6 +26,8 @@
 	======================================================================================================
 	 2020-03-12  v0.1  jcreyf  Initial POC version
 	 2022-05-31  v1.0  jcreyf  Restructuring things and pushing to git
+	 2022-06-01  v1.1  jcreyf  Make the mouse move more than 1 pixel and have it done in "smooth" mode
+	 2022-06-03  v1.2  jcreyf  A simple mouse move seems not enough any longer.  Adding in a mouse click.
 	======================================================================================================
 */
 package main
@@ -47,7 +49,7 @@ import (
 	"gopkg.in/yaml.v3"          // Needed to parse YAML config
 )
 
-var app_version string = "v1.0 (2022-05-31)"
+var app_version string = "v1.2 (2022-06-03)"
 var config *appConfig = nil
 var configFileStat os.FileInfo = nil
 
@@ -156,17 +158,19 @@ func readConfig(filename string) (*appConfig, error) {
 }
 
 /*
-	Move the mouse pointer just a little to trick the system in believing there is user
-	activity.
+	Move the mouse pointer to the upper left corner of the window and click two times to trick
+	the system in believing there is user activity.
+	The first click will make the system dropdown to appear but the 2nd click closes it again.
 */
 func moveMouse() {
 	if config.Enabled {
 		// https://github.com/go-vgo/robotgo/blob/master/docs/doc.md
 		x, y := robotgo.GetMousePos()
 		logDebug(fmt.Sprintf("Moving Mouse: (x:%v, y:%v)", x, y))
-		robotgo.MoveMouse(x+1, y+1)
+		robotgo.MoveMouse(0, 0)
+		robotgo.Click()
+		robotgo.Click()
 		robotgo.MoveMouse(x, y)
-		//	robotgo.Click()
 	} else {
 		logDebug("Not running (config.enabled == false)")
 	}
