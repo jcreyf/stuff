@@ -6,7 +6,9 @@
 #
 # Install the Selenium and Webdriver Manager packages:
 #   pip install selenium webdriver-manager
-#
+# or
+#   conda install selenium
+#   conda install -c conda-forge webdriver-manager
 
 import sys
 import time
