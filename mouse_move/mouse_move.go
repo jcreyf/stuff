@@ -171,7 +171,10 @@ func moveMouse() {
 		//		robotgo.Click()
 		//		robotgo.Click()
 		robotgo.MoveMouseSmooth(x+10, y)
-		robotgo.MoveMouseSmooth(x, y)
+		// For some dark reason, the mouse pointer seems to be drifting by 2 pixels consistently if we use
+		// the MoveMouseSmooth() method to move back to the original mouse position.  That's not happening
+		// when we use the MoveMove() method:
+		robotgo.MoveMouse(x, y)
 	} else {
 		logDebug("Not running (config.enabled == false)")
 	}
