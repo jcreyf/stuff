@@ -1,2 +1,3 @@
 # Ignore changes to the Slack Stay-Active config-file:
 slack_active.yaml
+*.yaml
