@@ -167,10 +167,11 @@ func moveMouse() {
 		// https://github.com/go-vgo/robotgo/blob/master/docs/doc.md
 		x, y := robotgo.GetMousePos()
 		logDebug(fmt.Sprintf("Moving Mouse: (x:%v, y:%v)", x, y))
-		robotgo.MoveMouse(0, 0)
-		robotgo.Click()
-		robotgo.Click()
-		robotgo.MoveMouse(x, y)
+		//		robotgo.MoveMouse(0, 0)
+		//		robotgo.Click()
+		//		robotgo.Click()
+		robotgo.MoveMouseSmooth(x+10, y)
+		robotgo.MoveMouseSmooth(x, y)
 	} else {
 		logDebug("Not running (config.enabled == false)")
 	}
