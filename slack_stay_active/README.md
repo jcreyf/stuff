@@ -2,9 +2,12 @@
 
 Little web scraper tool to stay active in Slack.
 
-Writing this in Go since it's faster than doing the same in Python:<br>
+~~Writing this in Go since it's faster than doing the same in Python:<br>~~
 - https://medium.com/@arnesh07/how-golang-can-save-you-days-of-web-scraping-72f019a6de87
 - https://github.com/Arnesh07/golang-python-web-scraping
+
+I was planning on writing this in Go with BeautifulSoup but ended up writing it in Python because BeautifulSoup 
+is missing functionality that I need.<br>
 
 Use config-file `slack_active.yaml` to control the app.<br>
 Supported layout and properties in the file:<br>
