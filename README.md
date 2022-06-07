@@ -20,3 +20,6 @@ A bucket of random scripts that seem important enough to version.
 
 ## - shell
 My personal Bash profile files that are also important enough for me to version.
+
+## - slack_stay_active
+A little tool to send triggers to Slack to keep your userID in "active" state for as long as this app runs.
