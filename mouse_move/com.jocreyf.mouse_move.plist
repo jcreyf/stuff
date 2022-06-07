@@ -22,6 +22,10 @@
 
     Install the "launchcontrol" gui tool if you want something better to debug launchd problems:
         /> brew install launchcontrol
+
+    Use Systemd to run the app as a service on Linux hosts.  See the systemctl command.
+    Or maybe run it as a simple background process:
+        /> nohup /Users/JCREYF/data/jcreyf/git/jcreyf/stuff/mouse_move/mouse_move 2>&1 > ~/tmp/mouse_move.log &
 -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
