@@ -7,7 +7,7 @@ Writing this in Go since it's faster than doing the same in Python:<br>
 - https://github.com/Arnesh07/golang-python-web-scraping
 
 Use config-file `slack_active.yaml` to control the app.<br>
-Supported data format for the file:<br>
+Supported layout and properties in the file:<br>
 ```
 ---
 config:
