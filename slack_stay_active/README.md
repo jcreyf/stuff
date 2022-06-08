@@ -24,4 +24,9 @@ config:
     workspace: <workspace name>
     username: <userID>
     password: <secret>
+  webbrowser:
+    # Linux:
+    data_dir: /home/<user>/.config/google-chrome/Default
+    # Mac:
+#    data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
 ```
