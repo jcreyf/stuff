@@ -5,11 +5,15 @@
 # as if the user is interacting with the web pages!
 #
 # Install the Selenium and Webdriver Manager packages:
-#   pip install selenium webdriver-manager
+# (make sure to have Selenium v4 or greater installed!)
+#   pip install selenium
+# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.
+#   pip install webdriver-manager
 # or
-#   conda install selenium
+#   conda install -c conda-forge selenium
+# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.
 #   conda install -c conda-forge webdriver-manager
-
+#
 import sys
 import time
 import yaml
@@ -35,14 +39,15 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
-        self._debug = False             # Make the web browser visible and print messages in the console to show what's happening;
-        self._enabled = True            # Enable click events in the web browser in the Slack page;
-        self._click_seconds = 60        # Number of seconds between repeating the clicks;
-        self._slack_org_url = ""        # The url of your Slack page that has the message textbox;
-        self._slack_workspace = ""      # The name of your Slack Workspace;
-        self._slack_username = ""       # Username to log on with in Slack (if needed);
-        self._slack_password = ""       # Password of the user to log on with;
-        self._webbrowser = None         # object holding a reference to the web browser;
+        self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
+        self._enabled = True                # Enable click events in the web browser in the Slack page;
+        self._click_seconds = 60            # Number of seconds between repeating the clicks;
+        self._slack_org_url = ""            # The url of your Slack page that has the message textbox;
+        self._slack_workspace = ""          # The name of your Slack Workspace;
+        self._slack_username = ""           # Username to log on with in Slack (if needed);
+        self._slack_password = ""           # Password of the user to log on with;
+        self._webbrowser = None             # Object holding a reference to the web browser;
+        self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
@@ -51,7 +56,7 @@ class SlackActive:
 
     def end(self):
         """ Method to close the web browser and cleanup resources. """
-        print("Closing the web browser...")
+        self.log("Closing the web browser...")
         try:
             self._webbrowser.quit()
             self._webbrowser = None
@@ -114,6 +119,30 @@ class SlackActive:
     def slackPassword(self, value: str):
         self._slack_password = value
 
+    @property
+    def webbrowserDataDir(self) -> str:
+        return self._webbrowser_data_dir
+
+    @webbrowserDataDir.setter
+    def webbrowserDataDir(self, value: str):
+        """
+        Set the Google Chrome user profile dir:
+        (see "Profile Path" when you navigate to "chrome://version" in your browser)
+        Mac:   ~/Library/Application Support/Google/Chrome/Default
+        Linux: ~/.config/google-chrome/default
+        """
+# ToDo: should we check if the directory exists?
+        self._webbrowser_data_dir = value
+
+
+    def log(self, msg: str):
+        print(f"{datetime.now().strftime('%H:%M:%S')}: {msg}")
+
+
+    def logDebug(self, msg: str):
+        if self.debug:
+            self.log(f"DEBUG: {msg}")
+
 
     def loadConfig(self):
         """ Method to load the config-file for this app.
@@ -148,7 +177,7 @@ class SlackActive:
             if not val is None:
                 self.debug = val
         except Exception as ex:
-            print(f"DEBUG load error! {ex}")
+            self.logDebug(f"load error! {ex}")
 
         # Parse the self._enabled-flag and set a default if not found:
         try:
@@ -156,7 +185,7 @@ class SlackActive:
             if not val is None:
                 self.enabled = val
         except Exception as ex:
-            print(f"ENABLED load error! {ex}")
+            self.log(f"ENABLED load error! {ex}")
 
         # Get the number of seconds between clicks:
         try:
@@ -164,7 +193,7 @@ class SlackActive:
             if self.clickSeconds is None:
                 self.clickSeconds = 60
         except Exception as ex:
-            print(f"Click Seconds load error! {ex}")
+            self.log(f"Click Seconds load error! {ex}")
 
         # Parse the url to the Slack web page and throw an error if we didn't get it:
         try:
@@ -174,9 +203,9 @@ class SlackActive:
             else:
                 self.slackURL = val
         except KeyError as err:
-            print("Can't do anything if I don't have the url to your Slack org!")
-            print("Set it in 'slack_active.yaml'")
-            print(f"Error: {err}")
+            self.log("Can't do anything if I don't have the url to your Slack org!")
+            self.log("Set it in 'slack_active.yaml'")
+            self.log(f"Error: {err}")
             sys.exit(1)
 
         # Parse the workspace name in the Slack or and throw an error if we didn't get it:
@@ -187,9 +216,9 @@ class SlackActive:
             else:
                 self.slackWorkspace = val
         except KeyError as err:
-            print("Can't do anything if I don't have the workspace in your Slack org!")
-            print("Set it in 'slack_active.yaml'")
-            print(f"Error: {err}")
+            self.log("Can't do anything if I don't have the workspace in your Slack org!")
+            self.log("Set it in 'slack_active.yaml'")
+            self.log(f"Error: {err}")
             sys.exit(1)
 
         # Parse the Slack user name and throw an error if we didn't get it:
@@ -200,9 +229,9 @@ class SlackActive:
             else:
                 self.slackUserName = val
         except KeyError as err:
-            print("Can't do anything if I don't have the username to log on to Slack!")
-            print("Set it in 'slack_active.yaml'")
-            print(f"Error: {err}")
+            self.log("Can't do anything if I don't have the username to log on to Slack!")
+            self.log("Set it in 'slack_active.yaml'")
+            self.log(f"Error: {err}")
             sys.exit(1)
 
         # Parse the Slack user password and throw an error if we didn't get it:
@@ -213,18 +242,27 @@ class SlackActive:
             else:
                 self.slackPassword = val
         except KeyError as err:
-            print("Can't do anything if I don't have the password to log on to Slack!")
-            print("Set it in 'slack_active.yaml'")
-            print(f"Error: {err}")
+            self.log("Can't do anything if I don't have the password to log on to Slack!")
+            self.log("Set it in 'slack_active.yaml'")
+            self.log(f"Error: {err}")
             sys.exit(1)
 
+        # Parse the web browser data directory for the user and throw an error if we didn't get it:
+        try:
+            val = settings['config']['webbrowser']['data_dir']
+            if not val is None:
+                self.webbrowserDataDir = val
+        except KeyError as err:
+            self.log(f"Setting for 'Web browser data directory' load error! {ex}")
+
         # Display the configuration settings:
-        print(f"Debug: {self.debug}")
-        print(f"Enabled: {self.enabled}")
-        print(f"loop every {self.clickSeconds} seconds")
-        print(f"Slack url: {self.slackURL}")
-        print(f"Slack workspace: {self.slackWorkspace}")
-        print(f"Slack user: {self.slackUserName}")
+        self.log(f"Debug: {self.debug}")
+        self.log(f"Enabled: {self.enabled}")
+        self.log(f"loop every {self.clickSeconds} seconds")
+        self.log(f"Slack url: {self.slackURL}")
+        self.log(f"Slack workspace: {self.slackWorkspace}")
+        self.log(f"Slack user: {self.slackUserName}")
+        self.log(f"Web browser data directory: {self.webbrowserDataDir}")
 
 
     def loadWebBrowser(self):
@@ -249,7 +287,7 @@ class SlackActive:
         # (see "Profile Path" when you navigate to "chrome://version" in your browser)
         #   Mac:   ~/Library/Application Support/Google/Chrome/Default
         #   Linux: ~/.config/google-chrome/default
-        chrome_options.add_argument("user-data-dir='/Users/JCREYF/Library/Application Support/Google/Chrome/Default'")
+        chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
 
         if not self._debug:
             # Run the web browser hidden in the background.
@@ -261,8 +299,8 @@ class SlackActive:
         self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         try:
             # Now navigate to the Slack web page and wait for it to be loaded:
-            print("Load web page...")
-            self._webbrowser.get(self._slack_org_url)
+            self.logDebug("Load web page...")
+            self._webbrowser.get(self.slackURL)
             WebDriverWait(self._webbrowser, timeout=600).until(EC.presence_of_element_located((By.XPATH, "//html")))
         except:
             raise Exception("We got a timeout!  It's taking too long to load the page.")
@@ -285,7 +323,7 @@ class SlackActive:
             webwait = WebDriverWait(driver=self._webbrowser, timeout=60)
             # This is not the Slack page yet that we want to see!
             # We need to go through the gates of hell...
-            print("  Sign in to your workspace...")
+            self.logDebug("  Sign in to your workspace...")
             # This is when the "Sign in to your workspace" page comes up:
             #
             #   <input data-qa="signin_domain_input" aria-describedby="domain_hint" aria-invalid="false" 
@@ -301,7 +339,7 @@ class SlackActive:
             #           margin_bottom_150" data-qa="submit_team_domain_button" type="submit">…</button>
             button = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
             button.click()
-            print("  Sign in to company...")
+            self.logDebug("  Sign in to company...")
             # We now moved on to the "Sign in to <company>" page:
             #
             #   <a id="enterprise_member_guest_account_signin_link_..." data-clog-event="WEBSITE_CLICK" 
@@ -310,7 +348,7 @@ class SlackActive:
             #      class="btn btn_large sign_in_sso_btn top_margin">
             logon = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-clog-event='WEBSITE_CLICK']")))
             logon.click()
-            print("  Enter credentials...")
+            self.logDebug("  Enter credentials...")
             # We now moved to the "ID[me] Sign-in Page":
             #
             #   <input type="text" placeholder name="username" id="okta-signin-username" value aria-label 
@@ -329,7 +367,7 @@ class SlackActive:
             #   <input class="button button-primary" type="submit" value="Sign In" id="okta-signin-submit" data-type="save">
             signin = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
             signin.click()
-            print("  Okta verify...")
+            self.logDebug("  Okta verify...")
             # We're now at the "Okta Verify" page:
             #   <label for="input82" data-se-for-name="autoPush" class>Send push automatically</label>
             #
@@ -341,7 +379,7 @@ class SlackActive:
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
             webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
 
-        print("The Slack page is loaded and ready.")
+        self.log("The Slack page is loaded and ready.")
 
 
     def clickTextbox(self):
@@ -357,7 +395,7 @@ class SlackActive:
             #   <div data-qa="message_input" data-message-input="true" data-channel-id="GEUFXD8AY" data-view-context="message-pane"
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
             msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
-            print(f"{datetime.now().strftime('%H:%M:%S')}: click...")
+            self.logDebug("click...")
             msg_box.click()
         except:
             # Something happened to the web page!  We're no longer where we should be!
@@ -377,7 +415,7 @@ class SlackActive:
         self._webbrowser.refresh()
         # We're on the page that we need.  Let's wait and make sure everything is loaded and ready for us to start clicking:
         msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
-        print("Slack page loaded and ready...")
+        self.logDebug("Slack page loaded and ready...")
         # Loop forever, scrolling the page up and down every so many seconds:
         while True:
             self.clickTextbox()
