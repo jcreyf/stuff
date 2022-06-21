@@ -33,6 +33,14 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
 
+class SlackTimeout(Exception):
+    """
+    Custom exception to deal with Slack kicking us out whenever its session expires.
+    It's doing this to force to re-authenticate every so many days.
+    """
+    pass
+
+
 class SlackActive:
     """
     Class to load the Slack web page and click on the message textbox as if the user is ready to start typing.
@@ -428,7 +436,7 @@ class SlackActive:
         except:
             # Something happened to the web page!  We're no longer where we should be!
             # Restart the steps to get to the correct page!
-            raise Exception("The Slack message textbox is not clickable !!")
+            raise SlackTimeout("The Slack message textbox is not clickable !!")
 
 
     def stayActive(self):
@@ -466,13 +474,24 @@ def signal_handler(signum, frame):
 if __name__ == "__main__":
     # Set the signal handler to deal with CTRL+C presses:
     signal.signal(signal.SIGINT, signal_handler)
-    # Run the app:
-    try:
-        slacker = SlackActive()
-        slacker.loadConfig()
-        slacker.loadWebBrowser()
-        slacker.stayActive()
-    except Exception as ex:
-        print(f"Exception! -> {ex}")
-    finally:
-        slacker.end()
+    # Run the app.
+    # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
+    # Slack then basically just wants us to log in again.
+    # We can try detect the session timeout and restart the app when that happens to do the auto login and keep going.
+    _loop = True
+    while _loop:
+        try:
+            slacker = SlackActive()
+            slacker.loadConfig()
+            slacker.loadWebBrowser()
+            slacker.stayActive()
+        except SlackTimeout as ex:
+            slacker.log(f"Slack kicked us out! -> {ex}")
+            slacker.log("restarting...")
+        except Exception as ex:
+            slacker.log(f"Exception! -> {ex}")
+            # Slack did not just kick us out after a while. Do not restart the loop.
+            # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!
+            _loop = False
+        finally:
+            slacker.end()
