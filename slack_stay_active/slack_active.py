@@ -9,7 +9,10 @@
 # or
 #   conda install selenium
 #   conda install -c conda-forge webdriver-manager
-
+#
+# Run as a process in the background:
+#   /> nohup /Users/JCREYF/data/jcreyf/git/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &
+#
 import sys
 import time
 import yaml
