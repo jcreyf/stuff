@@ -17,6 +17,7 @@
 # Run as a process in the background:
 #   /> nohup /Users/JCREYF/data/jcreyf/git/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &
 #
+import os
 import sys
 import time
 import yaml
@@ -218,8 +219,11 @@ class SlackActive:
                 # Window size in "width,height" pixels:
                 window_size: 300,500
         """
+        # Figure out this app's directory and add the name of the config-file to load:
+        _configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
+        self.log(f"Load config: {_configFile}")
         # Load the config file:
-        with open("slack_active.yaml", "r") as stream:
+        with open(_configFile, "r") as stream:
             try:
                 settings = yaml.safe_load(stream)
             except yaml.YAMLError as e:
