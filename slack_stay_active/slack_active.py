@@ -282,7 +282,11 @@ class SlackActive:
         # Display the configuration settings:
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
-        self.log(f"loop every {self.clickSeconds} seconds")
+        self.log(f"Click random: {self.clickRandom}")
+        if self.clickRandom:
+            self.log(f"  wait at most {self.clickSeconds} seconds to click")
+        else:
+            self.log(f"  click every {self.clickSeconds} seconds")
         self.log(f"Slack url: {self.slackURL}")
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
