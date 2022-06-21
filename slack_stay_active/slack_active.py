@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
-
-# 
-# Going with Selenium because we need more than just web scraping.  We need to provide user input
-# as if the user is interacting with the web pages!
-#
-# Install the Selenium and Webdriver Manager packages:
-# (make sure to have Selenium v4 or greater installed!)
-#   pip install selenium
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.
-#   pip install webdriver-manager
-# or
-#   conda install -c conda-forge selenium
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.
-#   conda install -c conda-forge webdriver-manager
-#
-# Run as a process in the background:
-#   /> nohup /Users/JCREYF/data/jcreyf/git/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &
-#
+# ======================================================================================================== #
+# Little app to keep me 'active' in Slack ... even when I'm "slacking" ;-)                                 #
+#                                                                                                          #
+# -------------------------------------------------------------------------------------------------------- #
+# Going with Selenium because we need more than just web scraping.  We need to provide user input as if    #
+# the user is interacting with the web pages!                                                              #
+#                                                                                                          #
+# Install the Selenium and Webdriver Manager packages:                                                     #
+# (make sure to have Selenium v4 or greater installed!)                                                    #
+#   pip install selenium                                                                                   #
+# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
+#   pip install webdriver-manager                                                                          #
+# or                                                                                                       #
+#   conda install -c conda-forge selenium                                                                  #
+# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
+#   conda install -c conda-forge webdriver-manager                                                         #
+#                                                                                                          #
+# Run as a process in the background:                                                                      #
+#   /> nohup /<...>/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &         #
+# ======================================================================================================== #
+#  2018-01-01  v0.1  jcreyf  Initial version                                                               #
+#  2022-06-01  v0.2  jcreyf  Lost the old code.  Rewriting and pushing to public GitHub for the fun of it. #
+#  2022-06-21  v1.0  jcreyf  This has been running stable for long enough!                                 #
+#                            Adding signal handlers to close the web browser when the process is killed.   #
+# ======================================================================================================== #
 import os
 import sys
 import time
@@ -52,6 +59,7 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
+        self._version = "v1.0 - 2022-06-21"
         self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
         self._enabled = True                # Enable click events in the web browser in the Slack page;
         self._click_random = False          # Sleep a random number of seconds between clicks;
@@ -78,6 +86,11 @@ class SlackActive:
             self._webbrowser = None
         except:
             pass
+
+    @property
+    def version(self) -> str:
+        """ Static app version details """
+        return f"{os.path.basename(__file__)}: {self._version}"
 
     @property
     def debug(self) -> bool:
@@ -549,6 +562,8 @@ if __name__ == "__main__":
     while _loop:
         try:
             slacker = SlackActive()
+            slacker.log("==================")
+            slacker.log(slacker.version)
             slacker.loadConfig()
             slacker.loadWebBrowser()
             slacker.stayActive()
