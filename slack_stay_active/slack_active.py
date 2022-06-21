@@ -467,7 +467,8 @@ slacker = None
 def signal_handler(signum, frame):
     """ Handle CRTL+C events """
     slacker.log("End of app...")
-    # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too:
+    # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
+    # The finally block will still execute even if we CTRL-C out of the app.
 #    slacker.end()
     exit(0)
 
