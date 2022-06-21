@@ -4,4 +4,4 @@
   # Output feedback to the console:
   debug: true
   # Number of seconds between mouse move events:
-  delay_seconds: 300
+  delay_seconds: 60
