@@ -30,7 +30,8 @@ config:
     username: <userID>
     password: <secret>
   webbrowser:
-    # Directory where the web browser can store session information so that you don't have to log on each time:
+    # Directory where the web browser can store session information so that you don't have to log on each time.
+    # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser.
     # on Linux machines:
     data_dir: /home/<user>/.config/google-chrome/Default
     # on Macs:
