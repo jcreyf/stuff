@@ -466,7 +466,7 @@ slacker = None
 
 def signal_handler(signum, frame):
     """ Handle CRTL+C events """
-    print("End of app...")
+    slacker.log("End of app...")
     slacker.end()
     exit(0)
 
