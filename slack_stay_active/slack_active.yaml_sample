@@ -4,8 +4,14 @@ config:
   enabled: true
   # Output feedback to the console:
   debug: false
-  # Go in an infinite loop, clicking the mouse every so many seconds:
-  click_every_N_seconds: 300
+  click:
+    # randomize the number of seconds between clicks?
+    random: true
+    # Go in an infinite loop, clicking the mouse every so many seconds.
+    # If 'random' is enabled, then the click will happen randomly between 1 second and whatever the
+    # 'seconds' parameter is set to.  Otherwise, the click will happen every time at
+    # the end of this delay in seconds:
+    seconds: 300
   slack:
     # The url of the Slack channel you want to do this:
     org_url: https://app.slack.com/client/<workspace code>/<channel code>

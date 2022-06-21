@@ -18,15 +18,21 @@ config:
   enabled: true
   # Output feedback to the console:
   debug: false
-  click_every_N_seconds: 300
+  click:
+    # randomize the number of seconds between clicks?
+    random: true
+    # If 'random' is enabled, then the click will happen randomly between 1 second and whatever the 'seconds'
+    # parameter is set to.  Otherwise, the click will happen every time at the end of this delay in seconds:
+    seconds: 300
   slack:
     org_url: https://app.slack.com/client/<workspace code>/<channel code>
     workspace: <workspace name>
     username: <userID>
     password: <secret>
   webbrowser:
-    # Linux:
+    # Directory where the web browser can store session information so that you don't have to log on each time:
+    # on Linux machines:
     data_dir: /home/<user>/.config/google-chrome/Default
-    # Mac:
-#    data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+    # on Macs:
+    data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
 ```

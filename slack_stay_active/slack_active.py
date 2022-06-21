@@ -44,6 +44,7 @@ class SlackActive:
         """ Constructor, initializing properties with default values. """
         self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
         self._enabled = True                # Enable click events in the web browser in the Slack page;
+        self._click_random = False          # Sleep a random number of seconds between clicks;
         self._click_seconds = 60            # Number of seconds between repeating the clicks;
         self._slack_org_url = ""            # The url of your Slack page that has the message textbox;
         self._slack_workspace = ""          # The name of your Slack Workspace;
@@ -81,6 +82,14 @@ class SlackActive:
     @enabled.setter
     def enabled(self, flag: bool):
         self._enabled = flag
+
+    @property
+    def clickRandom(self) -> bool:
+        return self._click_random
+
+    @clickRandom.setter
+    def clickRandom(self, flag: bool):
+        self._click_random = flag
 
     @property
     def clickSeconds(self) -> int:
@@ -159,7 +168,10 @@ class SlackActive:
             enabled: true
             # Output feedback to the console:
             debug: false
-            click_every_N_seconds: 300
+            click:
+                # Wait a random number of seconds between clicks:
+                random: True
+                seconds: 300
             slack:
                 org_url: https://app.slack.com/client/<workspace code>/<channel code>
                 workspace: <workspace name>
@@ -190,9 +202,17 @@ class SlackActive:
         except Exception as ex:
             self.log(f"ENABLED load error! {ex}")
 
-        # Get the number of seconds between clicks:
+        # Parse the random flag and set a default if not found:
         try:
-            self._click_seconds = settings['config']['click_every_N_seconds']
+            val = settings['config']['click']['random']
+            if not val is None:
+                self.clickRandom = val
+        except Exception as ex:
+            self.log(f"Click Random flag load error! {ex}")
+
+        # Get the max number of seconds between clicks:
+        try:
+            self._click_seconds = settings['config']['click']['seconds']
             if self.clickSeconds is None:
                 self.clickSeconds = 60
         except Exception as ex:
