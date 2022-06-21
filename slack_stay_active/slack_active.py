@@ -61,6 +61,8 @@ class SlackActive:
         self._slack_password = ""           # Password of the user to log on with;
         self._webbrowser = None             # Object holding a reference to the web browser;
         self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
+        self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
+        self._webbrowser_size = "300,500"   # "width,height" pixel size of browser window;
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
@@ -155,6 +157,24 @@ class SlackActive:
 # ToDo: should we check if the directory exists?
         self._webbrowser_data_dir = value
 
+    @property
+    def webbrowserPosition(self) -> str:
+        return self._webbrowser_position
+
+    @webbrowserPosition.setter
+    def webbrowserPosition(self, value: str):
+# ToDo: should we do some data validation here to make sure we got a valid coordinate?
+        self._webbrowser_position = value
+
+    @property
+    def webbrowserSize(self) -> str:
+        return self._webbrowser_size
+
+    @webbrowserSize.setter
+    def webbrowserSize(self, value: str):
+# ToDo: should we do some data validation here to make sure we got valid size values?
+        self._webbrowser_size = value
+
 
     def log(self, msg: str):
         print(f"{datetime.now().strftime('%H:%M:%S')}: {msg}")
@@ -186,6 +206,17 @@ class SlackActive:
                 workspace: <workspace name>
                 username: <userID>
                 password: <secret>
+            webbrowser:
+                # Directory where the web browser can store session information so that you don't have to log on each time.
+                # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:
+                # on Linux machines:
+                data_dir: /home/<user>/.config/google-chrome/Default
+                # on Macs:
+                data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+                # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
+                window_position: 5,10
+                # Window size in "width,height" pixels:
+                window_size: 300,500
         """
         # Load the config file:
         with open("slack_active.yaml", "r") as stream:
@@ -285,7 +316,23 @@ class SlackActive:
             if not val is None:
                 self.webbrowserDataDir = val
         except KeyError as err:
-            self.log(f"Setting for 'Web browser data directory' load error! {ex}")
+            self.log(f"Setting for 'Web browser data directory' load error! {err}")
+
+        # Load the settings for the web browser position on screen:
+        try:
+            val = settings['config']['webbrowser']['window_position']
+            if not val is None:
+                self.webbrowserPosition = val
+        except KeyError as err:
+            self.log(f"Setting for 'Web browser position' load error! {err}")
+
+        # Load the setting for the web browser window size on screen:
+        try:
+            val = settings['config']['webbrowser']['window_size']
+            if not val is None:
+                self.webbrowserSize = val
+        except KeyError as err:
+            self.log(f"Setting for 'Web browser size' load error! {err}")
 
         # Display the configuration settings:
         self.log(f"Debug: {self.debug}")
@@ -298,7 +345,9 @@ class SlackActive:
         self.log(f"Slack url: {self.slackURL}")
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
-        self.log(f"Web browser data directory: {self.webbrowserDataDir}")
+        self.log("Web browser:")
+        self.log(f"  data directory: {self.webbrowserDataDir}")
+        self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
 
 
     def loadWebBrowser(self):
@@ -314,8 +363,8 @@ class SlackActive:
         chrome_options = Options()
         # Find a list of arguments here:
         #   https://peter.sh/experiments/chromium-command-line-switches/
-        chrome_options.add_argument("window-position=5,10")
-        chrome_options.add_argument("window-size=300,500")
+        chrome_options.add_argument(f"window-position={self.webbrowserPosition}")
+        chrome_options.add_argument(f"window-size={self.webbrowserSize}")
         # Set the Google Chrome user profile dir.
         # This enables us to save the session information and with that, bypass a bunch of redirection and authentication
         # hoops if we want to run this frequently.  The browser will only force us through the Okta auth when the session

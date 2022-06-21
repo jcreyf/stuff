@@ -7,7 +7,7 @@ Little web scraper tool to stay active in Slack.
 - https://github.com/Arnesh07/golang-python-web-scraping
 
 I was planning on writing this in Go with BeautifulSoup but ended up writing it in Python because BeautifulSoup 
-is missing functionality that I need.<br>
+is missing functionality that I need.  I could of course also have used Selenium in Go but it seemed quite a bit easier in Python.<br>
 
 Use config-file `slack_active.yaml` to control the app.<br>
 Supported layout and properties in the file:<br>
@@ -36,4 +36,8 @@ config:
     data_dir: /home/<user>/.config/google-chrome/Default
     # on Macs:
     data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+    # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
+    window_position: 5,10
+    # Window size in "width,height" pixels:
+    window_size: 300,500
 ```
