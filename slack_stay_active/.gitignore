@@ -1,5 +1,6 @@
 # Ignore changes to the Slack Stay-Active config-file:
 slack_active.yaml
-
+# Do not version the test start script:
+start.sh
 # Ignore mystical single quote directories: '
 **/'
