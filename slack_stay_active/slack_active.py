@@ -467,7 +467,8 @@ slacker = None
 def signal_handler(signum, frame):
     """ Handle CRTL+C events """
     slacker.log("End of app...")
-    slacker.end()
+    # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too:
+#    slacker.end()
     exit(0)
 
 
