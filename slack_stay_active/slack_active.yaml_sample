@@ -1,0 +1,20 @@
+---
+config:
+  # Do not click the mouse if we disable functionality:
+  enabled: true
+  # Output feedback to the console:
+  debug: false
+  # Go in an infinite loop, clicking the mouse every so many seconds:
+  click_every_N_seconds: 300
+  slack:
+    # The url of the Slack channel you want to do this:
+    org_url: https://app.slack.com/client/<workspace code>/<channel code>
+    workspace: <workspace name>
+    username: <userID>
+    password: <secret>
+  webbrowser:
+    # Directory where the web browser can store session information so that you don't have to log on each time:
+    # on Linux machines:
+    data_dir: /home/<user>/.config/google-chrome/Default
+    # on Macs:
+#    data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
