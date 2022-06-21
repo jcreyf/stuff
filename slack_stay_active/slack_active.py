@@ -527,8 +527,10 @@ def signal_handler(signum, frame):
 
 
 if __name__ == "__main__":
-    # Set the signal handler to deal with CTRL+C presses:
+    # Set the signal handler to deal with CTRL+C presses and process kills:
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGKILL, signal_handler)
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
     # Slack then basically just wants us to log in again.
