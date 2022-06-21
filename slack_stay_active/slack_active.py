@@ -23,6 +23,7 @@ import yaml
 import signal
 
 from datetime import datetime
+from random import randint
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
@@ -439,10 +440,13 @@ class SlackActive:
         # We're on the page that we need.  Let's wait and make sure everything is loaded and ready for us to start clicking:
         msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
         self.logDebug("Slack page loaded and ready...")
-        # Loop forever, scrolling the page up and down every so many seconds:
+        # Loop forever, clicking the textbox every so many seconds:
+        _seconds = self.clickSeconds
         while True:
             self.clickTextbox()
-            time.sleep(self.clickSeconds)
+            if self.clickRandom:
+                _seconds = randint(1, self.clickSeconds)
+            time.sleep(_seconds)
 
 # ----
 
