@@ -178,7 +178,13 @@ class SlackActive:
 
 
     def log(self, msg: str):
-        print(f"{datetime.now().strftime('%H:%M:%S')}: {msg}")
+        """ Method to log messages.
+
+        We have to assume that this process may be running in the background and that output is piped to
+        a log-file.  Because of that, make sure we flush the stdout buffer to keep tails in sync with the
+        real world.
+        """
+        print(f"{datetime.now().strftime('%H:%M:%S')}: {msg}", flush=True)
 
 
     def logDebug(self, msg: str):
@@ -518,7 +524,7 @@ class SlackActive:
 slacker = None
 
 def signal_handler(signum, frame):
-    """ Handle CRTL+C events """
+    """ Handle CRTL+C and other kill events """
     slacker.log("End of app...")
     # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
     # The finally block will still execute even if we CTRL-C out of the app.
@@ -527,10 +533,14 @@ def signal_handler(signum, frame):
 
 
 if __name__ == "__main__":
-    # Set the signal handler to deal with CTRL+C presses and process kills:
+    # Set signal handlers to deal with CTRL+C presses and other ways to kill this process.
+    # We do this to close the web browser window and cleanup resources:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGKILL, signal_handler)
+    # Only available on Linux hosts:
+    if sys.platform.startswith("linux"):
+       signal.signal(signal.SIGKILL, signal_handler)
+
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
     # Slack then basically just wants us to log in again.
