@@ -1,2 +1,5 @@
 # Ignore changes to the Slack Stay-Active config-file:
 slack_active.yaml
+
+# Ignore mystical single quote directories: '
+**/'
