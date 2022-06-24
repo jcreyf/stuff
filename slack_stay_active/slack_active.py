@@ -23,6 +23,7 @@
 #  2022-06-01  v0.2  jcreyf  Lost the old code.  Rewriting and pushing to public GitHub for the fun of it. #
 #  2022-06-21  v1.0  jcreyf  This has been running stable for long enough!                                 #
 #                            Adding signal handlers to close the web browser when the process is killed.   #
+#  2022-06-23  V1.1  JCREYF  Add password encryption.                                                      #
 # ======================================================================================================== #
 import os
 import sys
@@ -40,6 +41,12 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
+# Load my own encryption class:
+# This needs:
+#   conda install pycryptodome
+#from ../../secrets import secrets
+sys.path.insert(1, "../../secrets")
+from secrets import AES_256_CBC
 
 class SlackTimeout(Exception):
     """
@@ -59,7 +66,7 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
-        self._version = "v1.0 - 2022-06-21"
+        self._version = "v1.1 - 2022-06-23"
         self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
         self._enabled = True                # Enable click events in the web browser in the Slack page;
         self._click_random = False          # Sleep a random number of seconds between clicks;
@@ -68,6 +75,7 @@ class SlackActive:
         self._slack_workspace = ""          # The name of your Slack Workspace;
         self._slack_username = ""           # Username to log on with in Slack (if needed);
         self._slack_password = ""           # Password of the user to log on with;
+        self._encryption_key = ""           # The key that was used to encrypt the password;
         self._webbrowser = None             # Object holding a reference to the web browser;
         self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
         self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
@@ -157,6 +165,14 @@ class SlackActive:
         self._slack_password = value
 
     @property
+    def encryptionKey(self) -> str:
+        return self._encryption_key
+
+    @encryptionKey.setter
+    def encryptionKey(self, value: str):
+        self._encryption_key = value
+
+    @property
     def webbrowserDataDir(self) -> str:
         return self._webbrowser_data_dir
 
@@ -226,6 +242,7 @@ class SlackActive:
                 workspace: <workspace name>
                 username: <userID>
                 password: <secret>
+                encryption_key: <key>
             webbrowser:
                 # Directory where the web browser can store session information so that you don't have to log on each time.
                 # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:
@@ -333,6 +350,14 @@ class SlackActive:
             self.log(f"Error: {err}")
             sys.exit(1)
 
+        # Parse the encryption key:
+        try:
+            val = settings['config']['slack']['encryption_key']
+            if not val is None:
+                self.encryptionKey = val
+        except KeyError as err:
+            self.log("Setting for 'Encryption key' load error! {err}")
+
         # Parse the web browser data directory for the user and throw an error if we didn't get it:
         try:
             val = settings['config']['webbrowser']['data_dir']
@@ -371,6 +396,19 @@ class SlackActive:
         self.log("Web browser:")
         self.log(f"  data directory: {self.webbrowserDataDir}")
         self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
+
+
+    def encryptPassword(self, value: str) -> str:
+        """ Method to encrypt the Slack credentials.
+
+
+        """
+        cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+        enc = cipher.encrypt(value)
+#        self.log(f"key: {self.encryptionKey}")
+        self.log(f"String '{value}' encrypts to: '{enc}'")
+        self.log(f"decrypts back to: '{cipher.decrypt(enc)}'")
+        return enc
 
 
     def loadWebBrowser(self):
@@ -465,12 +503,17 @@ class SlackActive:
             username = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='username']")))
             username.clear()
             username.send_keys(self.slackUserName)
+            # Decrypt the password:
+            cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+            _decryptedPassword = cipher.decrypt(self.slackPassword)
             #   <input type="password" placeholder name="password" id="okta-signin-password" value aria-label 
             #          autocomplete="current-password" aria-invalid="false" aria-required="true" required>
             # -> secret
             password = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='password']")))
             password.clear()
-            password.send_keys(self.slackPassword)
+            password.send_keys(_decryptedPassword)
+            # Remove the decrypted password from memory:
+            del _decryptedPassword
             # Then click "Sign In" button:
             #   <input class="button button-primary" type="submit" value="Sign In" id="okta-signin-submit" data-type="save">
             signin = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
@@ -550,9 +593,6 @@ if __name__ == "__main__":
     # We do this to close the web browser window and cleanup resources:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    # Only available on Linux hosts:
-    if sys.platform.startswith("linux"):
-       signal.signal(signal.SIGKILL, signal_handler)
 
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
@@ -565,8 +605,10 @@ if __name__ == "__main__":
             slacker.log("==================")
             slacker.log(slacker.version)
             slacker.loadConfig()
-            slacker.loadWebBrowser()
-            slacker.stayActive()
+            slacker.encryptPassword("GapFusion2!")
+            _loop = False
+#            slacker.loadWebBrowser()
+#            slacker.stayActive()
         except SlackTimeout as ex:
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")
