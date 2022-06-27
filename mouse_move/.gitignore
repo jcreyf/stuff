@@ -1,2 +1,5 @@
 # Do not version the compiled app:
 mouse_move
+# Do not version the test start script:
+start.sh
+
