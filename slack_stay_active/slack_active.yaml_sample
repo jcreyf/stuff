@@ -18,8 +18,6 @@ config:
     workspace: <workspace name>
     username: <userID>
     password: <secret>
-    # The key that was used to encrypt the password:
-    encryption_key: <key>
   webbrowser:
     # Directory where the web browser can store session information so that you don't have to log on each time.
     # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:

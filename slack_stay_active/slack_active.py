@@ -63,6 +63,14 @@ class SlackTimeout(Exception):
     pass
 
 
+class SecurityException(Exception):
+    """
+    Custom exception to deal with credential issues.
+    The given password may fail to decrypt.
+    """
+    pass
+
+
 class SlackActive:
     """
     Class to load the Slack web page and click on the message textbox as if the user is ready to start typing.
@@ -89,7 +97,7 @@ class SlackActive:
         self._slack_workspace = ""          # The name of your Slack Workspace;
         self._slack_username = ""           # Username to log on with in Slack (if needed);
         self._slack_password = ""           # Password of the user to log on with;
-        self._encryption_key = ""           # The key that was used to encrypt the password;
+        self._encryption_key = None         # The key that was used to encrypt the password;
         self._webbrowser = None             # Object holding a reference to the web browser;
         self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
         self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
@@ -251,7 +259,6 @@ class SlackActive:
                 workspace: <workspace name>
                 username: <userID>
                 password: <secret>
-                encryption_key: <key>
             webbrowser:
                 # Directory where the web browser can store session information so that you don't have to log on each time.
                 # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:
@@ -359,14 +366,6 @@ class SlackActive:
             self.log(f"Error: {err}")
             sys.exit(1)
 
-        # Parse the encryption key:
-        try:
-            val = settings['config']['slack']['encryption_key']
-            if not val is None:
-                self.encryptionKey = val
-        except KeyError as err:
-            self.log("Setting for 'Encryption key' load error! {err}")
-
         # Parse the web browser data directory for the user and throw an error if we didn't get it:
         try:
             val = settings['config']['webbrowser']['data_dir']
@@ -407,14 +406,21 @@ class SlackActive:
         self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
 
 
-    def encryptPassword(self, value: str) -> str:
+    def encryptPassword(self, value: str, key: str = None) -> str:
         """ Method to encrypt the Slack credentials.
 
+        Arguments:
+            value (str): the string to encrypt;
+            key (str): the key to encrypt the string with;
 
+        Returns:
+            str: the encrypted and encoded string;
+
+        Raises:
+            multiple potential exceptions during either the encryption or encoding process;
         """
         cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
         enc = cipher.encrypt(value)
-        self.log(f"key: {self.encryptionKey}")
         self.log(f"String '{value}' encrypts to: '{enc}'")
         self.log(f"decrypts back to: '{cipher.decrypt(enc)}'")
         return enc
@@ -430,6 +436,14 @@ class SlackActive:
           2. we do have a valid session and the browser is able to directly navigate to the page we want.  No need
              to authenticate again;
         """
+        # Decrypt the credential.
+        # Doing this all the way at the beginning since this is a crucial piece that may fail for whatever reason
+        # and there's no point if even trying if we don't have decryptable credentials:
+        cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+        _decryptedPassword = cipher.decrypt(self.slackPassword)
+        if _decryptedPassword == None or _decryptedPassword == "":
+            raise SecurityException("Failed to decrypt the password!  Is the key set correctly (JC_SECRETS_KEY)?")
+
         chrome_options = Options()
         # Find a list of arguments here:
         #   https://peter.sh/experiments/chromium-command-line-switches/
@@ -512,9 +526,7 @@ class SlackActive:
             username = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='username']")))
             username.clear()
             username.send_keys(self.slackUserName)
-            # Decrypt the password:
-            cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
-            _decryptedPassword = cipher.decrypt(self.slackPassword)
+
             #   <input type="password" placeholder name="password" id="okta-signin-password" value aria-label 
             #          autocomplete="current-password" aria-invalid="false" aria-required="true" required>
             # -> secret
@@ -614,8 +626,17 @@ if __name__ == "__main__":
                             required=False, \
                             metavar="<string>", \
                             help="encrypt a string")
+    parser.add_argument("-k", "--key", \
+                            dest="__KEY", \
+                            required=False, \
+                            metavar="<string>", \
+                            help="encryption key (you can also set env var 'JC_SECRETS_KEY')")
     # Parse the command-line arguments:
     __ARGS=parser.parse_args()
+
+    # Pull out the values that we want:
+    encrypt=__ARGS.__ENCRYPT
+    key=__ARGS.__KEY
 
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
@@ -629,9 +650,11 @@ if __name__ == "__main__":
             slacker.log(slacker.version())
             slacker.loadConfig()
             # See if we need to execute something from the command line arguments:
-            if __ARGS.__ENCRYPT:
-                slacker.log(f"Need to encrypt: {__ARGS.__ENCRYPT}")
-                slacker.encryptPassword(__ARGS.__ENCRYPT)
+            if encrypt:
+                slacker.log(f"Need to encrypt: {encrypt}")
+                if key != None:
+                    slacker.encryptionKey=key
+                print(slacker.encryptPassword(encrypt))
                 exit(0)
             # No 'one of' task to execute.  Load the web browser and do the thing this app was built for:
             slacker.loadWebBrowser()
@@ -642,6 +665,7 @@ if __name__ == "__main__":
         except Exception as ex:
             slacker.log(f"Exception! -> {ex}")
             # Slack did not just kick us out after a while. Do not restart the loop.
+            # It may be that decryption of the credential failed.
             # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!
             _loop = False
         finally:
