@@ -40,4 +40,15 @@ config:
     window_position: 5,10
     # Window size in "width,height" pixels:
     window_size: 300,500
+    # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
+    chrome_version: "latest"
+```
+
+The tool is using my own encryption module: https://github.com/jcreyf/secrets  
+
+You can encrypt your password by using the `--encrypt` command line argument in combination with the `--key` argument (or setting the key in the environment variable described below).  
+
+Set the used encryption key token in this environment variable so that the tool can decrypt the password:  
+```
+export JC_SECRETS_KEY=<key_string>
 ```
