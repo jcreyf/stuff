@@ -26,7 +26,8 @@
 #  2022-06-01  v0.2  jcreyf  Lost the old code.  Rewriting and pushing to public GitHub for the fun of it. #
 #  2022-06-21  v1.0  jcreyf  This has been running stable for long enough!                                 #
 #                            Adding signal handlers to close the web browser when the process is killed.   #
-#  2022-06-23  V1.1  jcreyf  Add password encryption.                                                      #
+#  2022-06-23  v1.1  jcreyf  Add password encryption.                                                      #
+#  2022-07-01  v1.2  jcreyf  Make it possible to select which version of the Chrome web driver to use.     #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -79,7 +80,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.1 - 2022-06-23"
+    __version__ = "v1.2 - 2022-07-01"
 
     @staticmethod
     def version() -> str:
@@ -102,6 +103,7 @@ class SlackActive:
         self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
         self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
         self._webbrowser_size = "300,500"   # "width,height" pixel size of browser window;
+        self._webbrowser_version = "latest" # the version of Selenium chromedriver to use;
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
@@ -270,6 +272,8 @@ class SlackActive:
                 window_position: 5,10
                 # Window size in "width,height" pixels:
                 window_size: 300,500
+                # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
+                chrome_version: "latest"
         """
         # Figure out this app's directory and add the name of the config-file to load:
         _configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
@@ -390,6 +394,14 @@ class SlackActive:
         except KeyError as err:
             self.log(f"Setting for 'Web browser size' load error! {err}")
 
+        # Load the setting for which Chrome version to download and use:
+        try:
+            val = settings['config']['webbrowser']['chrome_version']
+            if not val is None:
+                self._webbrowser_version = val
+        except KeyError as err:
+            self.log(f"Setting for 'Web browser version' load error! {err}")
+
         # Display the configuration settings:
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
@@ -402,6 +414,7 @@ class SlackActive:
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
         self.log("Web browser:")
+        self.log(f"  Chrome version to use: {self._webbrowser_version}")
         self.log(f"  data directory: {self.webbrowserDataDir}")
         self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
 
@@ -439,11 +452,13 @@ class SlackActive:
         # Decrypt the credential.
         # Doing this all the way at the beginning since this is a crucial piece that may fail for whatever reason
         # and there's no point if even trying if we don't have decryptable credentials:
+        self.logDebug("Get credentials...")
         cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
         _decryptedPassword = cipher.decrypt(self.slackPassword)
         if _decryptedPassword == None or _decryptedPassword == "":
             raise SecurityException("Failed to decrypt the password!  Is the key set correctly (JC_SECRETS_KEY)?")
 
+        self.logDebug("Configure web browser...")
         chrome_options = Options()
         # Find a list of arguments here:
         #   https://peter.sh/experiments/chromium-command-line-switches/
@@ -463,18 +478,33 @@ class SlackActive:
             # Set the option to hide it:
             chrome_options.add_argument("--headless")
 
-        print("Open web browser...")
+        self.logDebug("Open web browser...")
         # Open the web browser:
-        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        # The WebDriverManager will download some version of the chrome driver if it's not there yet on disk.
+        # By default, the version will be 'latest' but we can set it to some specific version if the latest version
+        # has bugs and is acting up or is behaving differently for some reason.
+        # The driver is by default installed in:
+        #   ~/.wdm/drivers/chromedriver/mac64/
+        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self._webbrowser_version).install()), options=chrome_options)
+        # 2022-07-01 - The above line started throwing this exception for some dark reason:
+        #   Exception! -> Message: unknown error: cannot determine loading status
+        #   from unknown error: unexpected command response
+        #       (Session info: chrome=103.0.5060.53)
+        # The Chrome web browser got updated on my laptop and maybe there was a conflict between my browser and Selenium ChromeDriver?
+        # I updated everything to no avail.  I then added this line to see if that worked ... and YES!  WEIRD!!!
+# ToDo: Need to keep debugging and take this out again!
+        self._webbrowser.get("file:///")
         try:
             # Now navigate to the Slack web page and wait for it to be loaded:
-            self.logDebug("Load web page...")
+            self.logDebug(f"Load web page: {self.slackURL}")
             self._webbrowser.get(self.slackURL)
             WebDriverWait(self._webbrowser, timeout=600).until(EC.presence_of_element_located((By.XPATH, "//html")))
-        except:
+        except Exception as err:
+            self.logDebug(err)
             raise Exception("We got a timeout!  It's taking too long to load the page.")
 
         # Zoom out to 75%
+        self.logDebug("Resize webpage")
         self._webbrowser.execute_script(f"document.body.style.zoom='75%'")
         self._webbrowser.refresh()
 
@@ -482,12 +512,14 @@ class SlackActive:
         # Let's see if we can see the Slack textbox that we use to type a message in:
         # (it might make more sense to simply grep for the CSS selector in the HTML code at this point)
         try:
+            self.logDebug("See if the page has a valid Slack text input box...")
             WebDriverWait(driver=self._webbrowser, timeout=30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")))
             _found = True
         except:
             _found = False
 
         if not _found:
+            self.logDebug("We're not on the correct Slack page yet!")
             # We'll give Selenium search requests up to a minute to respond:
             webwait = WebDriverWait(driver=self._webbrowser, timeout=60)
             # This is not the Slack page yet that we want to see!
@@ -567,7 +599,7 @@ class SlackActive:
             #   <div data-qa="message_input" data-message-input="true" data-channel-id="GEUFXD8AY" data-view-context="message-pane"
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
             msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
-            self.logDebug("click...")
+            self.logDebug("click!")
             msg_box.click()
         except:
             # Something happened to the web page!  We're no longer where we should be!
