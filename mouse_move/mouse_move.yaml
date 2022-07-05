@@ -2,6 +2,6 @@
   # Do not move the mouse if we disable functionality:
   enabled: true
   # Output feedback to the console:
-  debug: true
+  debug: false
   # Number of seconds between mouse move events:
-  delay_seconds: 60
+  delay_seconds: 180
