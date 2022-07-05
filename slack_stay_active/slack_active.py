@@ -232,7 +232,7 @@ class SlackActive:
         a log-file.  Because of that, make sure we flush the stdout buffer to keep tails in sync with the
         real world.
         """
-        print(f"{datetime.now().strftime('%H:%M:%S')}: {msg}", flush=True)
+        print(f"{datetime.now().strftime('%m/%d %H:%M:%S')}: {msg}", flush=True)
 
 
     def logDebug(self, msg: str):
