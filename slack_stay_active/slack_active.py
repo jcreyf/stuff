@@ -28,6 +28,9 @@
 #                            Adding signal handlers to close the web browser when the process is killed.   #
 #  2022-06-23  v1.1  jcreyf  Add password encryption.                                                      #
 #  2022-07-01  v1.2  jcreyf  Make it possible to select which version of the Chrome web driver to use.     #
+#  2022-07-18  v1.3  jcreyf  Make the webpage resize optional (as in ignoring any errors if it fails)      #
+#                            Also make the Okta 2FA step optional (adding a check for it and only go       #
+#                            go through the 2FA step if it looks like we need it.                          #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -36,6 +39,7 @@
 import os
 import sys
 import time
+import selenium
 import yaml
 import signal
 
@@ -47,6 +51,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # Load my own encryption class:
@@ -80,7 +85,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.2 - 2022-07-01"
+    __version__ = "v1.3 - 2022-07-18"
 
     @staticmethod
     def version() -> str:
@@ -486,12 +491,11 @@ class SlackActive:
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
         self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self._webbrowser_version).install()), options=chrome_options)
-        # 2022-07-01 - The above line started throwing this exception for some dark reason:
-        #   Exception! -> Message: unknown error: cannot determine loading status
-        #   from unknown error: unexpected command response
-        #       (Session info: chrome=103.0.5060.53)
-        # The Chrome web browser got updated on my laptop and maybe there was a conflict between my browser and Selenium ChromeDriver?
-        # I updated everything to no avail.  I then added this line to see if that worked ... and YES!  WEIRD!!!
+        # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
+        #             -> unknown error: cannot determine loading status
+        #                from unknown error: unexpected command response
+        #             The web browser got updated and maybe there was a conflict between my browser and Selenium ChromeDriver?
+        #             I updated everything to no avail.  I then added this line to see if that worked ... and YES!  WEIRD!!!
 # ToDo: Need to keep debugging and take this out again!
         self._webbrowser.get("file:///")
         try:
@@ -504,9 +508,15 @@ class SlackActive:
             raise Exception("We got a timeout!  It's taking too long to load the page.")
 
         # Zoom out to 75%
+        # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
+        #             -> javascript error: Cannot read properties of null (reading 'style')
+        #             The resize is just a nice to have.  Ignoring any potential errors here:
         self.logDebug("Resize webpage")
-        self._webbrowser.execute_script(f"document.body.style.zoom='75%'")
-        self._webbrowser.refresh()
+        try:
+            self._webbrowser.execute_script(f"document.body.style.zoom='75%'")
+            self._webbrowser.refresh()
+        except Exception:
+            self.logDebug("There was an issue resizing the webpage")
 
         # We may already be on the Slack page at this point if we had a valid session and cookies in our Chrome cache.
         # Let's see if we can see the Slack textbox that we use to type a message in:
@@ -571,13 +581,26 @@ class SlackActive:
             #   <input class="button button-primary" type="submit" value="Sign In" id="okta-signin-submit" data-type="save">
             signin = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
             signin.click()
+
+            # 2022-07-18: For some dark reason, the 'Sign In' didn't require 2FA through Okta this time!
+            #             This means that there are circumstances where the Okta 2FA gets skipped.
+            #             Let's just wait for the 2FA page since we almost always have to go through it.
+            #             We can determine if we can skip it after we get a timeout and turns out our final
+            #             webpage got loaded instead of the 2FA page.
             self.logDebug("  Okta verify...")
-            # We're now at the "Okta Verify" page:
-            #   <label for="input82" data-se-for-name="autoPush" class>Send push automatically</label>
-            #
-            #   <input class="button button-primary" type="submit" value="Send Push" data-type="save">
-            okta_verify = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
-            okta_verify.click()
+            try:
+                # We're now at the "Okta Verify" page (most of the time):
+                #   <label for="input82" data-se-for-name="autoPush" class>Send push automatically</label>
+                #
+                #   <input class="button button-primary" type="submit" value="Send Push" data-type="save">
+                okta_verify = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
+                # No timeout, so we got the 2FA page.  Click the damn thing!
+                okta_verify.click()
+            except TimeoutException:
+                # We're not getting the 2FA page.  Lets see if we got the final page that has the testing input box:
+                if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
+                    self.logDebug("  -> Okta 2FA skipped!")
+
             # See if we have access to the text input box at the bottom of the page:
             #   <div data-qa="message_input" data-message-input="true" data-channel-id="GEUFXD8AY" data-view-context="message-pane"
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
