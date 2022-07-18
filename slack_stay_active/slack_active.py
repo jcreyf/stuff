@@ -596,10 +596,14 @@ class SlackActive:
                 okta_verify = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit']")))
                 # No timeout, so we got the 2FA page.  Click the damn thing!
                 okta_verify.click()
-            except TimeoutException:
+            except TimeoutException as te:
                 # We're not getting the 2FA page.  Lets see if we got the final page that has the testing input box:
                 if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
                     self.logDebug("  -> Okta 2FA skipped!")
+                else:
+                    # Nope, we're not on the final webpage yet.  Raise the TimeOut exception:
+                    self.logDebug("TimeOut on the Okta verification step!")
+                    raise te
 
             # See if we have access to the text input box at the bottom of the page:
             #   <div data-qa="message_input" data-message-input="true" data-channel-id="GEUFXD8AY" data-view-context="message-pane"
