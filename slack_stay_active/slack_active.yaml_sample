@@ -17,6 +17,8 @@ config:
     org_url: https://app.slack.com/client/<workspace code>/<channel code>
     workspace: <workspace name>
     username: <userID>
+    # Run this to get the encrypted password:
+    #   /> ./slack_active.py --encrypt <password>
     password: <secret>
   webbrowser:
     # Directory where the web browser can store session information so that you don't have to log on each time.
