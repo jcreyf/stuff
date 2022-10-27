@@ -4,3 +4,6 @@ slack_active.yaml
 start.sh
 # Ignore mystical single quote directories: '
 **/'
+# Ignore temp files and directories:
+*.tmp
+**/temp
