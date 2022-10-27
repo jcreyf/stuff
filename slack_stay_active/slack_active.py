@@ -31,6 +31,10 @@
 #  2022-07-18  v1.3  jcreyf  Make the webpage resize optional (as in ignoring any errors if it fails)      #
 #                            Also make the Okta 2FA step optional (adding a check for it and only go       #
 #                            go through the 2FA step if it looks like we need it.                          #
+#  2022-10-26  v1.4  jcreyf  Add config for activation times (when to set yourself online/offline and on   #
+#                            what days).  This will make it easier to run the tool as a daemon in the      #
+#                            background and still come over believable instead of showing online 24/7      #
+#                            every day of the week all year long.                                          #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -85,7 +89,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.3 - 2022-07-18"
+    __version__ = "v1.4 - 2022-10-26"
 
     @staticmethod
     def version() -> str:
