@@ -31,6 +31,8 @@ config:
     window_position: 5,10
     # Window size in "width,height" pixels:
     window_size: 300,500
+    # Resize the web page (default: 100%):
+    page_size: 75%
     # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
     chrome_version: "latest"
   times:
@@ -60,6 +62,10 @@ config:
     - name: End Year
       date_from: 2022-12-25
       date_to: 2023-01-02
+      yearly: true
+    - name: Birthday
+      date_from: 2022-08-23
+      date_to: 2022-08-23
       yearly: true
     - name: PTO
       date_from: 2022-11-01

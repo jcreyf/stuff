@@ -4,6 +4,7 @@
 #                                                                                                          #
 # Arguments:                                                                                               #
 #    --encrypt <string> | -e <string>        :encrypt a string so that we can copy/paste it into our yaml  #
+#    --key <string> | -k <string>            :optional 2ndary encryption key                               #
 #                                                                                                          #
 # -------------------------------------------------------------------------------------------------------- #
 # Going with Selenium because we need more than just web scraping.  We need to provide user input as if    #
@@ -31,14 +32,16 @@
 #  2022-07-18  v1.3  jcreyf  Make the webpage resize optional (as in ignoring any errors if it fails)      #
 #                            Also make the Okta 2FA step optional (adding a check for it and only go       #
 #                            go through the 2FA step if it looks like we need it.                          #
-#  2022-10-26  v1.4  jcreyf  Add config for activation times (when to set yourself online/offline and on   #
+#  2022-10-26  v1.4  jcreyf  - add config for activation times (when to set yourself online/offline and on #
 #                            what days).  This will make it easier to run the tool as a daemon in the      #
 #                            background and still come over believable instead of showing online 24/7      #
 #                            every day of the week all year long.                                          #
+#                            - make the webpage resize configurable.                                       #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
+#   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
 #
 import os
 import sys
@@ -112,7 +115,8 @@ class SlackActive:
         self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
         self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
         self._webbrowser_size = "300,500"   # "width,height" pixel size of browser window;
-        self._webbrowser_version = "latest" # the version of Selenium chromedriver to use;
+        self._webbrowser_version = "latest" # The version of Selenium chromedriver to use;
+        self._webpage_size = "100%"         # Resize the webpage to this size;
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
@@ -233,6 +237,14 @@ class SlackActive:
 # ToDo: should we do some data validation here to make sure we got valid size values?
         self._webbrowser_size = value
 
+    @property
+    def webpageSize(self) -> str:
+        return self._webpage_size
+
+    @webpageSize.setter
+    def webpageSize(self, value: str):
+# ToDo: need to do validation here!
+        self._webpage_size = value
 
     def log(self, msg: str):
         """ Method to log messages.
@@ -281,6 +293,8 @@ class SlackActive:
                 window_position: 5,10
                 # Window size in "width,height" pixels:
                 window_size: 300,500
+                # Resize the web page (default: 100%):
+                page_size: 75%
                 # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
                 chrome_version: "latest"
         """
@@ -403,6 +417,14 @@ class SlackActive:
         except KeyError as err:
             self.log(f"Setting for 'Web browser size' load error! {err}")
 
+        # Load the setting for the webpage resize:
+        try:
+            val = settings['config']['webbrowser']['page_size']
+            if not val is None:
+                self.webpageSize = val
+        except KeyError as err:
+            self.log(f"Setting for 'Webpage resize' load error! {err}")
+
         # Load the setting for which Chrome version to download and use:
         try:
             val = settings['config']['webbrowser']['chrome_version']
@@ -425,7 +447,7 @@ class SlackActive:
         self.log("Web browser:")
         self.log(f"  Chrome version to use: {self._webbrowser_version}")
         self.log(f"  data directory: {self.webbrowserDataDir}")
-        self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
+        self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels (webpage size: {self.webpageSize})")
 
 
     def encryptPassword(self, value: str, key: str = None) -> str:
@@ -473,6 +495,9 @@ class SlackActive:
         #   https://peter.sh/experiments/chromium-command-line-switches/
         chrome_options.add_argument(f"window-position={self.webbrowserPosition}")
         chrome_options.add_argument(f"window-size={self.webbrowserSize}")
+        # 2022-10-27: the ChromeDriver is ignoring these zoom settings:
+        chrome_options.add_argument("force-device-scale-factor=0.75")
+        chrome_options.add_argument("high-dpi-support=0.75")
         # Set the Google Chrome user profile dir.
         # This enables us to save the session information and with that, bypass a bunch of redirection and authentication
         # hoops if we want to run this frequently.  The browser will only force us through the Okta auth when the session
@@ -510,17 +535,6 @@ class SlackActive:
         except Exception as err:
             self.logDebug(err)
             raise Exception("We got a timeout!  It's taking too long to load the page.")
-
-        # Zoom out to 75%
-        # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
-        #             -> javascript error: Cannot read properties of null (reading 'style')
-        #             The resize is just a nice to have.  Ignoring any potential errors here:
-        self.logDebug("Resize webpage")
-        try:
-            self._webbrowser.execute_script(f"document.body.style.zoom='75%'")
-            self._webbrowser.refresh()
-        except Exception:
-            self.logDebug("There was an issue resizing the webpage")
 
         # We may already be on the Slack page at this point if we had a valid session and cookies in our Chrome cache.
         # Let's see if we can see the Slack textbox that we use to type a message in:
@@ -614,6 +628,17 @@ class SlackActive:
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
             webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
 
+        # Resize the webpage
+        # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
+        #             -> javascript error: Cannot read properties of null (reading 'style')
+        #             The resize is just a nice to have.  Ignoring any potential errors here:
+        self.logDebug(f"Resize webpage to: {self._webpage_size}")
+        try:
+            self._webbrowser.execute_script(f"document.body.style.zoom='{self._webpage_size}'")
+            self._webbrowser.refresh()
+        except Exception:
+            self.logDebug("There was an issue resizing the webpage")
+
         self.log("The Slack page is loaded and ready.")
 
 
@@ -645,9 +670,6 @@ class SlackActive:
         if self._webbrowser is None:
             raise Exception("Web browser not loaded!")
 
-        # Zoom out to 50%
-        self._webbrowser.execute_script(f"document.body.style.zoom='50%'")
-        self._webbrowser.refresh()
         # We're on the page that we need.  Let's wait and make sure everything is loaded and ready for us to start clicking:
         msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
         self.logDebug("Slack page loaded and ready...")
