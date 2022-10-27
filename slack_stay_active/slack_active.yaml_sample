@@ -33,3 +33,34 @@ config:
     window_size: 300,500
     # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
     chrome_version: "latest"
+  times:
+    # Configure the days and times to be online on (optional).
+    # If you don't set days/times, then the tool will keep you online 24/7.
+    # You can configure multiple configs for different days.
+    - name: Regular Work Week
+      # Time of the day to set you online:
+      start: 08:45
+      # Build in some randomness to show you online:
+      # Set online somewhere between start time and a random number of minutes between 0 and this number (0 = default):
+      start_random_minutes: 15
+      # Stop setting online at this time of day:
+      stop: 18:00
+      # Build in some randomness to show you offline:
+      # Stop setting online somewhere between stop time and a random number of minutes between 0 and this number (0 = default):
+      stop_random_minutes: 30
+      # On which days of the week do these settings apply (Mo,Tu,We,Th,Fr,Sa,Su):
+      days: Mo,Tu,We,Th
+    - name: Summer Hours
+      start: 08:45
+      start_random_minutes: 15
+      stop: 13:00
+      stop_random_minutes: 30
+      days: Fr
+  exclusions:
+    - name: End Year
+      date_from: 2022-12-25
+      date_to: 2023-01-02
+      yearly: true
+    - name: PTO
+      date_from: 2022-11-01
+      date_to: 2022-11-01
