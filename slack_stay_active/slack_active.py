@@ -297,6 +297,28 @@ class SlackActive:
                 page_size: 75%
                 # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
                 chrome_version: "latest"
+            times:
+                # Be active on these days:
+                - name: Regular Work Week
+                start: 08:45
+                start_random_minutes: 15
+                stop: 18:00
+                stop_random_minutes: 30
+                days: Mo,Tu,We,Th
+                - name: Summer Hours
+                start: 08:45
+                start_random_minutes: 15
+                stop: 13:00
+                stop_random_minutes: 30
+                days: Fr
+            exclusions:
+                - name: End Year
+                date_from: 2022-12-25
+                date_to: 2023-01-02
+                yearly: true
+                - name: PTO
+                date_from: 2022-11-01
+                date_to: 2022-11-01
         """
         # Figure out this app's directory and add the name of the config-file to load:
         _configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
@@ -432,6 +454,26 @@ class SlackActive:
                 self._webbrowser_version = val
         except KeyError as err:
             self.log(f"Setting for 'Web browser version' load error! {err}")
+
+        # Did we get 'times' in the configs?
+        if 'times' in settings['config'].keys():
+            for time_range in settings['config']['times']:
+                self.log(f"Time Range: {time_range['name']}")
+                self.log(f"  start time: {time_range['start']} (random {time_range['start_random_minutes']} min)")
+                self.log(f"  stop time: {time_range['stop']} (random {time_range['stop_random_minutes']} min)")
+                self.log(f"  week days: {time_range['days']}")
+        else:
+            self.log("No 'times' found in the config.  Using defaults (24/7)")
+
+        # Did we get any 'exclusions' in the config?
+        if 'exclusions' in settings['config'].keys():
+            for exclusion in settings['config']['exclusions']:
+                self.log(f"Exclusion: {exclusion['name']}")
+                self.log(f"  from: {exclusion['date_from']}")
+                self.log(f"  to: {exclusion['date_to']}")
+#                self.log(f"  yearly: {exclusion['yearly']}")
+        else:
+            self.log("No runtime exclusions in the config")
 
         # Display the configuration settings:
         self.log(f"Debug: {self.debug}")

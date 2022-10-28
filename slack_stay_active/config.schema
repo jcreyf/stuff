@@ -1,0 +1,33 @@
+{
+    'config': {
+        'required': True,
+        'type': 'dict',
+        'schema': {
+            'enabled': {
+                'required': False,
+                'type': 'boolean',
+                'default': True
+            },
+            'debug': {
+                'required': False,
+                'type': 'boolean',
+                'default': False
+            },
+            'click': {
+
+            },
+            'slack': {
+
+            },
+            'webbrowser': {
+
+            },
+            'times': {
+
+            },
+            'exclusions': {
+
+            }
+        }
+    }
+}
