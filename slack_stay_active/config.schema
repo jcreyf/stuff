@@ -14,16 +14,86 @@
                 'default': False
             },
             'click': {
-
+                'required': False,
+                'type': 'dict',
+                'schema': {
+                    'random': {
+                        'required': False,
+                        'type': 'boolean',
+                        'default': False
+                    },
+                    'seconds': {
+                        'required': False,
+                        'type': 'integer',
+                        'default': 0
+                    }
+                }
             },
             'slack': {
-
+                'required': True,
+                'type': 'dict',
+                'schema': {
+                    'org_url': {
+                        'required': True,
+                        'type': 'string'
+                        # regex url
+                    },
+                    'workspace': {
+                        'required': True,
+                        'type': 'string'
+                    },
+                    'username': {
+                        'required': True,
+                        'type': 'string'
+                        # regex email
+                    },
+                    'password': {
+                        'required': True,
+                        'type': 'string'
+                    },
+                    'encryption_key': {
+                        'required': True,
+                        'type': 'string'
+                    }
+                }
             },
             'webbrowser': {
-
+                'required': True,
+                'type': 'dict',
+                'schema': {
+                    'data_dir': {
+                        'required': True,
+                        'type': 'string'
+                        # regex path
+                    }
+                }
             },
             'times': {
+                'required': False,
+                'type': 'list',
+                'schema': {
+                    'type': 'dict',
+                    'schema': {
+                        'name': {
 
+                        },
+                        'start': {
+
+                        },
+                        'start_random_minutes': {
+
+                        },
+                        'stop': {
+
+                        },
+                        'stop_random_minutes': {
+
+                        },
+                        'days': {
+
+                        }
+                    }
+                }
             },
             'exclusions': {
 
