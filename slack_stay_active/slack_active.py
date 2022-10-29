@@ -471,7 +471,10 @@ class SlackActive:
                 self.log(f"Exclusion: {exclusion['name']}")
                 self.log(f"  from: {exclusion['date_from']}")
                 self.log(f"  to: {exclusion['date_to']}")
-#                self.log(f"  yearly: {exclusion['yearly']}")
+                if 'yearly' in exclusion.keys():
+                    self.log(f"  yearly: {exclusion['yearly']}")
+                else:
+                    self.log(f"  yearly: No")
         else:
             self.log("No runtime exclusions in the config")
 
