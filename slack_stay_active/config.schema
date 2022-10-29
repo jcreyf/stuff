@@ -1,3 +1,5 @@
+# Cerberus schema definition for our config-file.
+# https://docs.python-cerberus.org/en/stable/
 {
     'config': {
         'required': True,
