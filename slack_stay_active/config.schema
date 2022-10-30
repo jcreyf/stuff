@@ -1,5 +1,10 @@
+#
 # Cerberus schema definition for our config-file.
-# https://docs.python-cerberus.org/en/stable/
+# We are using this template in our app to validate the 'slack_active.yaml' file.
+#
+# Cerberus docs:
+#   https://docs.python-cerberus.org/en/stable/
+#
 {
     'config': {
         'required': True,
@@ -46,8 +51,8 @@
                     },
                     'username': {
                         'required': True,
-                        'type': 'string'
-                        # regex email
+                        'type': 'string',
+                        'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
                     },
                     'password': {
                         'required': True,
@@ -77,28 +82,69 @@
                     'type': 'dict',
                     'schema': {
                         'name': {
-
+                            'required': True,
+                            'type': 'string'
                         },
                         'start': {
-
+                            'required': True,
+                            'type': 'string'
+                            # turn into 'datetime'?
+                            # regex HH:MM
                         },
                         'start_random_minutes': {
-
+                            'required': True,
+                            'type': 'integer',
+                            'default': 0
+                            # regex minutes
                         },
                         'stop': {
-
+                            'required': True,
+                            'type': 'string'
+                            # turn into 'datetime'?
+                            # regex HH:MM
                         },
                         'stop_random_minutes': {
-
+                            'required': True,
+                            'type': 'integer',
+                            'default': 0
+                            # regex minutes
                         },
                         'days': {
-
+                            'required': True,
+                            'type': 'string'
+                            # regex?
+                            # check_with?
                         }
                     }
                 }
             },
             'exclusions': {
-
+                'required': False,
+                'type': 'list',
+                'schema': {
+                    'type': 'dict',
+                    'schema': {
+                        'name': {
+                            'required': True,
+                            'type': 'string'
+                        },
+                        'date_from': {
+                            'required': True,
+                            'type': 'date'
+                            # regex
+                        },
+                        'date_to': {
+                            'required': True,
+                            'type': 'date'
+                            # regex
+                        },
+                        'yearly': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        }
+                    }
+                }
             }
         }
     }

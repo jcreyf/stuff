@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # ------------------------------------------------------
 # YAML schema validation:
-#     * https://docs.python-cerberus.org/en/stable/  
+#   https://docs.python-cerberus.org/en/stable/
+# Normalization rules:
+#   https://docs.python-cerberus.org/en/stable/normalization-rules.html
 #
 # /> conda install -c conda-forge cerberus
 #      The following packages will be downloaded:
@@ -31,7 +33,11 @@ def load_doc():
 
 ## Now, validating the yaml file is straightforward:
 schema = eval(open(_schemaFile, 'r').read())
-v = Validator(schema)
+v = Validator(schema, purge_unknown=True)
 doc = load_doc()
+print(doc)
+print("---------")
 print(v.validate(doc))
 print(v.errors)
+print("---------")
+print(v.normalized(doc))
