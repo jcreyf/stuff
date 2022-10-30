@@ -37,6 +37,7 @@
 #                            background and still come over believable instead of showing online 24/7      #
 #                            every day of the week all year long.                                          #
 #                            - make the webpage resize configurable.                                       #
+#                            - validate and normalize the config-file;                                     #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -49,6 +50,7 @@ import time
 import selenium
 import yaml
 import signal
+import ast
 
 from datetime import datetime
 from random import randint
@@ -60,6 +62,8 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
+# Needed to validate and normalize the config-file:
+from cerberus import Validator
 
 # Load my own encryption class:
 # This needs:
@@ -102,26 +106,14 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
-        self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
-        self._enabled = True                # Enable click events in the web browser in the Slack page;
-        self._click_random = False          # Sleep a random number of seconds between clicks;
-        self._click_seconds = 60            # Number of seconds between repeating the clicks;
-        self._slack_org_url = ""            # The url of your Slack page that has the message textbox;
-        self._slack_workspace = ""          # The name of your Slack Workspace;
-        self._slack_username = ""           # Username to log on with in Slack (if needed);
-        self._slack_password = ""           # Password of the user to log on with;
-        self._encryption_key = None         # The key that was used to encrypt the password;
-        self._webbrowser = None             # Object holding a reference to the web browser;
-        self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
-        self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
-        self._webbrowser_size = "300,500"   # "width,height" pixel size of browser window;
-        self._webbrowser_version = "latest" # The version of Selenium chromedriver to use;
-        self._webpage_size = "100%"         # Resize the webpage to this size;
+        self._settings = {}                 # Dictionary with our settings loaded from the config-file;
+
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
 #        self.end()
         pass
+
 
     def end(self):
         """ Method to close the web browser and cleanup resources. """
@@ -132,69 +124,78 @@ class SlackActive:
         except:
             pass
 
+
     @property
     def debug(self) -> bool:
-        return self._debug
+        return self._settings['config']['debug']
 
     @debug.setter
     def debug(self, flag: bool):
-        self._debug = flag
+        self._settings['config']['debug'] = flag
+
 
     @property
     def enabled(self) -> bool:
-        return self._enabled
+        return self._settings['config']['enabled']
 
     @enabled.setter
     def enabled(self, flag: bool):
-        self._enabled = flag
+        self._settings['config']['enabled'] = flag
+
 
     @property
     def clickRandom(self) -> bool:
-        return self._click_random
+        return self._settings['config']['click']['random']
 
     @clickRandom.setter
     def clickRandom(self, flag: bool):
-        self._click_random = flag
+        self._settings['config']['click']['random'] = flag
+
 
     @property
     def clickSeconds(self) -> int:
-        return self._click_seconds
+        return self._settings['config']['click']['seconds']
 
     @clickSeconds.setter
     def clickSeconds(self, value: int):
-        self._click_seconds = value
+        self._settings['config']['click']['seconds'] = value
+
 
     @property
     def slackURL(self) -> str:
-        return self._slack_org_url
+        return self._settings['config']['slack']['org_url']
 
     @slackURL.setter
     def slackURL(self, value: str):
-        self._slack_org_url = value
+        self._settings['config']['slack']['org_url'] = value
+
 
     @property
     def slackWorkspace(self) -> str:
-        return self._slack_workspace
+        return self._settings['config']['slack']['workspace']
 
     @slackWorkspace.setter
     def slackWorkspace(self, value: str):
-        self._slack_workspace = value
+        self._settings['config']['slack']['workspace'] = value
+
 
     @property
     def slackUserName(self) -> str:
-        return self._slack_username
+        return self._settings['config']['slack']['username']
 
     @slackUserName.setter
     def slackUserName(self, value: str):
-        self._slack_username = value
+        self._settings['config']['slack']['username'] = value
+
 
     @property
     def slackPassword(self) -> str:
-        return self._slack_password
+        return self._settings['config']['slack']['password']
 
     @slackPassword.setter
     def slackPassword(self, value: str):
-        self._slack_password = value
+        self._settings['config']['slack']['password'] = value
+
 
     @property
     def encryptionKey(self) -> str:
@@ -204,9 +205,10 @@ class SlackActive:
     def encryptionKey(self, value: str):
         self._encryption_key = value
 
+
     @property
     def webbrowserDataDir(self) -> str:
-        return self._webbrowser_data_dir
+        return self._settings['config']['webbrowser']['data_dir']
 
     @webbrowserDataDir.setter
     def webbrowserDataDir(self, value: str):
@@ -217,34 +219,47 @@ class SlackActive:
         Linux: ~/.config/google-chrome/default
         """
 # ToDo: should we check if the directory exists?
-        self._webbrowser_data_dir = value
+        self._settings['config']['webbrowser']['data_dir'] = value
+
 
     @property
     def webbrowserPosition(self) -> str:
-        return self._webbrowser_position
+        return self._settings['config']['webbrowser']['window_position']
 
     @webbrowserPosition.setter
     def webbrowserPosition(self, value: str):
 # ToDo: should we do some data validation here to make sure we got a valid coordinate?
-        self._webbrowser_position = value
+        self._settings['config']['webbrowser']['window_position'] = value
+
 
     @property
     def webbrowserSize(self) -> str:
-        return self._webbrowser_size
+        return self._settings['config']['webbrowser']['window_size']
 
     @webbrowserSize.setter
     def webbrowserSize(self, value: str):
 # ToDo: should we do some data validation here to make sure we got valid size values?
-        self._webbrowser_size = value
+        self._settings['config']['webbrowser']['window_size'] = value
+
+
+    @property
+    def webbrowserVersion(self) -> str:
+        return self._settings['config']['webbrowser']['chrome_version']
+
+    @webbrowserVersion.setter
+    def webbrowserVersion(self, value: str):
+        self._settings['config']['webbrowser']['chrome_version'] = value
+
 
     @property
     def webpageSize(self) -> str:
-        return self._webpage_size
+        return self._settings['config']['webbrowser']['page_size']
 
     @webpageSize.setter
     def webpageSize(self, value: str):
 # ToDo: need to do validation here!
-        self._webpage_size = value
+        self._settings['config']['webbrowser']['page_size'] = value
+
 
     def log(self, msg: str):
         """ Method to log messages.
@@ -326,138 +341,40 @@ class SlackActive:
         # Load the config file:
         with open(_configFile, "r") as stream:
             try:
-                settings = yaml.safe_load(stream)
+                _settings = yaml.safe_load(stream)
             except yaml.YAMLError as e:
+                print("Failed to read the config file!")
                 print(e)
                 sys.exit(1)
 
-        # Parse the self._debug-flag and set a default if not found:
-        try:
-            val = settings['config']['debug']
-            if not val is None:
-                self.debug = val
-        except Exception as ex:
-            self.logDebug(f"load error! {ex}")
+        # Load the schema definition file so that we can validate the config-file:
+        _configSchemaFile = f"{os.path.dirname(os.path.realpath(__file__))}/config.schema"
+        self.log(f"Load schema definition: {_configSchemaFile}")
+        with open(_configSchemaFile, 'r') as stream:
+            try:
+                _config_schema_definition = stream.read()
+                # Remove comment-lines and turn the string into a dict:
+                # (using eval() could be used too but is not secure since it can execute commands in strings!)
+                _config_schema_definition = ast.literal_eval(_config_schema_definition)
+            except Exception as e:
+                print("Failed to read the config schema definition file!")
+                print(e)
+                sys.exit(1)
 
-        # Parse the self._enabled-flag and set a default if not found:
-        try:
-            val = settings['config']['enabled']
-            if not val is None:
-                self.enabled = val
-        except Exception as ex:
-            self.log(f"ENABLED load error! {ex}")
-
-        # Parse the random flag and set a default if not found:
-        try:
-            val = settings['config']['click']['random']
-            if not val is None:
-                self.clickRandom = val
-        except Exception as ex:
-            self.log(f"Click Random flag load error! {ex}")
-
-        # Get the max number of seconds between clicks:
-        try:
-            self._click_seconds = settings['config']['click']['seconds']
-            if self.clickSeconds is None:
-                self.clickSeconds = 60
-        except Exception as ex:
-            self.log(f"Click Seconds load error! {ex}")
-
-        # Parse the url to the Slack web page and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['org_url']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.org_url'!")
-            else:
-                self.slackURL = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the url to your Slack org!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
+        # Validate the config:
+        validator = Validator(_config_schema_definition, purge_unknown = True)
+        if validator.validate(_settings):
+            # The config is fine.  Normalize it to add potential missing optional settings:
+            self._settings = validator.normalized(_settings)
+        else:
+            # The config has issues!
+            print("The config has issues!!!")
+            print(validator.errors)
             sys.exit(1)
-
-        # Parse the workspace name in the Slack or and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['workspace']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.workspace'!")
-            else:
-                self.slackWorkspace = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the workspace in your Slack org!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
-
-        # Parse the Slack user name and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['username']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.username'!")
-            else:
-                self.slackUserName = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the username to log on to Slack!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
-
-        # Parse the Slack user password and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['password']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.password'!")
-            else:
-                self.slackPassword = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the password to log on to Slack!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
-
-        # Parse the web browser data directory for the user and throw an error if we didn't get it:
-        try:
-            val = settings['config']['webbrowser']['data_dir']
-            if not val is None:
-                self.webbrowserDataDir = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser data directory' load error! {err}")
-
-        # Load the settings for the web browser position on screen:
-        try:
-            val = settings['config']['webbrowser']['window_position']
-            if not val is None:
-                self.webbrowserPosition = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser position' load error! {err}")
-
-        # Load the setting for the web browser window size on screen:
-        try:
-            val = settings['config']['webbrowser']['window_size']
-            if not val is None:
-                self.webbrowserSize = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser size' load error! {err}")
-
-        # Load the setting for the webpage resize:
-        try:
-            val = settings['config']['webbrowser']['page_size']
-            if not val is None:
-                self.webpageSize = val
-        except KeyError as err:
-            self.log(f"Setting for 'Webpage resize' load error! {err}")
-
-        # Load the setting for which Chrome version to download and use:
-        try:
-            val = settings['config']['webbrowser']['chrome_version']
-            if not val is None:
-                self._webbrowser_version = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser version' load error! {err}")
 
         # Did we get 'times' in the configs?
-        if 'times' in settings['config'].keys():
-            for time_range in settings['config']['times']:
+        if 'times' in self._settings['config'].keys():
+            for time_range in self._settings['config']['times']:
                 self.log(f"Time Range: {time_range['name']}")
                 self.log(f"  start time: {time_range['start']} (random {time_range['start_random_minutes']} min)")
                 self.log(f"  stop time: {time_range['stop']} (random {time_range['stop_random_minutes']} min)")
@@ -466,8 +383,8 @@ class SlackActive:
             self.log("No 'times' found in the config.  Using defaults (24/7)")
 
         # Did we get any 'exclusions' in the config?
-        if 'exclusions' in settings['config'].keys():
-            for exclusion in settings['config']['exclusions']:
+        if 'exclusions' in self._settings['config'].keys():
+            for exclusion in self._settings['config']['exclusions']:
                 self.log(f"Exclusion: {exclusion['name']}")
                 self.log(f"  from: {exclusion['date_from']}")
                 self.log(f"  to: {exclusion['date_to']}")
@@ -490,7 +407,7 @@ class SlackActive:
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
         self.log("Web browser:")
-        self.log(f"  Chrome version to use: {self._webbrowser_version}")
+        self.log(f"  Chrome version to use: {self.webbrowserVersion}")
         self.log(f"  data directory: {self.webbrowserDataDir}")
         self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels (webpage size: {self.webpageSize})")
 
@@ -564,7 +481,7 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self._webbrowser_version).install()), options=chrome_options)
+        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self.webbrowserVersion).install()), options=chrome_options)
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
         #                from unknown error: unexpected command response
