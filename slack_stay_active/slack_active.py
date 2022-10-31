@@ -51,6 +51,7 @@ import selenium
 import yaml
 import signal
 import ast
+import pprint
 
 from datetime import datetime
 from random import randint
@@ -396,6 +397,10 @@ class SlackActive:
             self.log("No runtime exclusions in the config")
 
         # Display the configuration settings:
+        if self.debug:
+            self.logDebug("Config:")
+            pprint.pprint(self._settings)
+
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
         self.log(f"Click random: {self.clickRandom}")
