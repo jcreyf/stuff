@@ -199,11 +199,11 @@ class SlackActive:
 
     @property
     def encryptionKey(self) -> str:
-        return self._encryption_key
+        return self._settings['config']['slack']['encryption_key']
 
     @encryptionKey.setter
     def encryptionKey(self, value: str):
-        self._encryption_key = value
+        self._settings['config']['slack']['encryption_key'] = value
 
 
     @property
@@ -469,7 +469,7 @@ class SlackActive:
         #   Linux: ~/.config/google-chrome/default
         chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
 
-        if not self._debug:
+        if not self.debug:
             # Run the web browser hidden in the background.
             # Set the option to hide it:
             chrome_options.add_argument("--headless")
@@ -594,9 +594,9 @@ class SlackActive:
         # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
         #             -> javascript error: Cannot read properties of null (reading 'style')
         #             The resize is just a nice to have.  Ignoring any potential errors here:
-        self.logDebug(f"Resize webpage to: {self._webpage_size}")
+        self.logDebug(f"Resize webpage to: {self.webpageSize}")
         try:
-            self._webbrowser.execute_script(f"document.body.style.zoom='{self._webpage_size}'")
+            self._webbrowser.execute_script(f"document.body.style.zoom='{self.webpageSize}'")
             self._webbrowser.refresh()
         except Exception:
             self.logDebug("There was an issue resizing the webpage")

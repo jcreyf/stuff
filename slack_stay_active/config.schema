@@ -59,8 +59,10 @@
                         'type': 'string'
                     },
                     'encryption_key': {
-                        'required': True,
-                        'type': 'string'
+                        'required': False,
+                        'type': 'string',
+                        'default': ''
+                        # default: JC_SECRETS_KEY
                     }
                 }
             },
@@ -69,7 +71,7 @@
                 'type': 'dict',
                 'schema': {
                     'data_dir': {
-                        'required': True,
+                        'required': False,
                         'type': 'string'
                         # regex path
                     },
