@@ -5,6 +5,8 @@
 # Arguments:                                                                                               #
 #    --encrypt <string> | -e <string>        :encrypt a string so that we can copy/paste it into our yaml  #
 #    --key <string> | -k <string>            :optional 2ndary encryption key                               #
+#    --test                                  :test the app all the way up to the loading of the webbrowser.#
+#                                             This can be helpfull to validate the configuration file.     #
 #                                                                                                          #
 # -------------------------------------------------------------------------------------------------------- #
 # Going with Selenium because we need more than just web scraping.  We need to provide user input as if    #
@@ -12,13 +14,13 @@
 #                                                                                                          #
 # Install the Selenium and Webdriver Manager packages:                                                     #
 # (make sure to have Selenium v4 or greater installed!)                                                    #
-#   pip install selenium                                                                                   #
+#   pip install selenium cerberus                                                                          #
 # Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   pip install webdriver-manager                                                                          #
+#   pip install webdriver-manager cerberus                                                                 #
 # or                                                                                                       #
-#   conda install -c conda-forge selenium                                                                  #
+#   conda install -c conda-forge selenium cerberus                                                         #
 # Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   conda install -c conda-forge webdriver-manager                                                         #
+#   conda install -c conda-forge webdriver-manager cerberus                                                #
 #                                                                                                          #
 # Run as a process in the background:                                                                      #
 #   /> nohup /<...>/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &         #
@@ -38,6 +40,7 @@
 #                            every day of the week all year long.                                          #
 #                            - make the webpage resize configurable.                                       #
 #                            - validate and normalize the config-file;                                     #
+#                            - add the '--test' CLI flag to test the app without loading the web page;     #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -405,7 +408,7 @@ class SlackActive:
                 else:
                     self.log(f"  yearly: No")
         else:
-            self.log("No runtime exclusions in the config")
+            self.log("No runtime 'exclusions' in the config")
 
         # Display the configuration settings:
         if self.debug:
@@ -683,6 +686,9 @@ if __name__ == "__main__":
     parser.add_argument("--version", \
                             action="version", \
                             version=SlackActive.__version__)
+    parser.add_argument("--test", \
+                            action="store_true", \
+                            help="Test the app without opening a webbrowser and accessing Slack")
     parser.add_argument("-e", "--encrypt", \
                             dest="__ENCRYPT", \
                             required=False, \
@@ -699,6 +705,10 @@ if __name__ == "__main__":
     # Pull out the values that we want:
     encrypt=__ARGS.__ENCRYPT
     key=__ARGS.__KEY
+    TEST=__ARGS.test
+
+    if TEST:
+        print("** TEST MODE **")
 
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
@@ -719,8 +729,14 @@ if __name__ == "__main__":
                 print(slacker.encryptPassword(encrypt))
                 exit(0)
             # No 'one of' task to execute.  Load the web browser and do the thing this app was built for:
-            slacker.loadWebBrowser()
-            slacker.stayActive()
+            # (if we're not in TEST mode)
+            if TEST:
+                # TEST mode goes through all steps of the app up to the opening of the webbrowser.
+                # So don't do that here and exit out of the loop:
+                _loop = False
+            else:
+                slacker.loadWebBrowser()
+                slacker.stayActive()
         except SlackTimeout as ex:
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")

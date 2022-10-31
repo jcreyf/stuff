@@ -14,59 +14,59 @@ config:
     seconds: 300
   slack:
     # The url of the Slack channel you want to do this:
-    org_url: https://app.slack.com/client/<workspace code>/<channel code>
-    workspace: <workspace name>
-    username: <userID>
+    org_url: "https://app.slack.com/client/<workspace code>/<channel code>"
+    workspace: "<workspace name>"
+    username: "<userID>"
     # Run this to get the encrypted password:
     #   /> ./slack_active.py --encrypt <password>
-    password: <secret>
+    password: "<secret>"
   webbrowser:
     # Directory where the web browser can store session information so that you don't have to log on each time.
     # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:
     # on Linux machines:
-    data_dir: /home/<user>/.config/google-chrome/Default
+    data_dir: "/home/<user>/.config/google-chrome/Default"
     # on Macs:
-    data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+    data_dir: "/Users/<user>/Library/Application Support/Google/Chrome/Default"
     # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
-    window_position: 5,10
+    window_position: "5,10"
     # Window size in "width,height" pixels:
-    window_size: 300,500
+    window_size: "300,500"
     # Resize the web page (default: 100%):
-    page_size: 75%
+    page_size: "75%"
     # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
     chrome_version: "latest"
   times:
     # Configure the days and times to be online on (optional).
     # If you don't set days/times, then the tool will keep you online 24/7.
     # You can configure multiple configs for different days.
-    - name: Regular Work Week
+    - name: "Regular Work Week"
       # Time of the day to set you online:
-      start: 08:45
+      start: "08:45"
       # Build in some randomness to show you online:
       # Set online somewhere between start time and a random number of minutes between 0 and this number (0 = default):
       start_random_minutes: 15
       # Stop setting online at this time of day:
-      stop: 18:00
+      stop: "18:00"
       # Build in some randomness to show you offline:
       # Stop setting online somewhere between stop time and a random number of minutes between 0 and this number (0 = default):
       stop_random_minutes: 30
       # On which days of the week do these settings apply (Mo,Tu,We,Th,Fr,Sa,Su):
-      days: Mo,Tu,We,Th
-    - name: Summer Hours
-      start: 08:45
+      days: "Mo,Tu,We,Th"
+    - name: "Summer Hours"
+      start: "08:45"
       start_random_minutes: 15
-      stop: 13:00
+      stop: "13:00"
       stop_random_minutes: 30
-      days: Fr
+      days: "Fr"
   exclusions:
-    - name: End Year
+    - name: "End Year"
       date_from: 2022-12-25
       date_to: 2023-01-02
       yearly: true
-    - name: Birthday
+    - name: "Birthday"
       date_from: 2022-08-23
       date_to: 2022-08-23
       yearly: true
-    - name: PTO
+    - name: "PTO"
       date_from: 2022-11-01
       date_to: 2022-11-01
