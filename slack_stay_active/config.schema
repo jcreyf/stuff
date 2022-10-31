@@ -62,7 +62,8 @@
                         'required': False,
                         'type': 'string',
                         'default': ''
-                        # default: JC_SECRETS_KEY
+#                        'default_setter': lambda k: k['JC_SECRETS_KEY']
+#                        'default_setter': lambda k: os.environ['JC_SECRETS_KEY']
                     }
                 }
             },

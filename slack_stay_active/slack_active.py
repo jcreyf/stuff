@@ -118,12 +118,14 @@ class SlackActive:
 
     def end(self):
         """ Method to close the web browser and cleanup resources. """
-        self.log("Closing the web browser...")
-        try:
-            self._webbrowser.quit()
-            self._webbrowser = None
-        except:
-            pass
+        # Close the webbrowser window (if we have one):
+        if hasattr(self, '_webbrowser'):
+            self.log("Closing the web browser...")
+            try:
+                self._webbrowser.quit()
+                self._webbrowser = None
+            except:
+                pass
 
 
     @property
@@ -373,6 +375,15 @@ class SlackActive:
             print(validator.errors)
             sys.exit(1)
 
+        # Try set the encryption key from the environment variable if it's not set in the config-file:
+        if self.encryptionKey == '':
+            try:
+                self.encryptionKey = os.environ['JC_SECRETS_KEY']
+            except Exception as e:
+                self.log("We don't have the encryption key!")
+                self.log("Add it to the config-file or set environment variable: JC_SECRETS_KEY")
+                sys.exit(1)
+
         # Did we get 'times' in the configs?
         if 'times' in self._settings['config'].keys():
             for time_range in self._settings['config']['times']:
@@ -398,8 +409,7 @@ class SlackActive:
 
         # Display the configuration settings:
         if self.debug:
-            self.logDebug("Config:")
-            pprint.pprint(self._settings)
+            self.logDebug(f"Config:\n{pprint.pformat(self._settings)}")
 
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
