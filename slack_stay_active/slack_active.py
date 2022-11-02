@@ -379,7 +379,7 @@ class SlackActive:
         # Try set the encryption key from either the command-line of from the environment variable
         # if it's not set in the config-file:
         if self.encryptionKey == '':
-            if cli_key == '':
+            if cli_key == None:
                 try:
                     self.encryptionKey = os.environ['JC_SECRETS_KEY']
                 except Exception as e:
