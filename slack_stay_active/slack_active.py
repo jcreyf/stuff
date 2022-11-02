@@ -376,14 +376,18 @@ class SlackActive:
             print(validator.errors)
             sys.exit(1)
 
-        # Try set the encryption key from the environment variable if it's not set in the config-file:
+        # Try set the encryption key from either the command-line of from the environment variable
+        # if it's not set in the config-file:
         if self.encryptionKey == '':
-            try:
-                self.encryptionKey = os.environ['JC_SECRETS_KEY']
-            except Exception as e:
-                self.log("We don't have the encryption key!")
-                self.log("Add it to the config-file or set environment variable: JC_SECRETS_KEY")
-                sys.exit(1)
+            if cli_key == '':
+                try:
+                    self.encryptionKey = os.environ['JC_SECRETS_KEY']
+                except Exception as e:
+                    self.log("We don't have the encryption key!")
+                    self.log("Add it to the config-file or set environment variable: JC_SECRETS_KEY")
+                    sys.exit(1)
+            else:
+                self.encryptionKey = cli_key
 
         # Did we get 'times' in the configs?
         if 'times' in self._settings['config'].keys():
@@ -712,7 +716,7 @@ if __name__ == "__main__":
 
     # Pull out the values that we want:
     encrypt=__ARGS.__ENCRYPT
-    key=__ARGS.__KEY
+    cli_key=__ARGS.__KEY
     TEST=__ARGS.test
 
     if TEST:
@@ -732,8 +736,8 @@ if __name__ == "__main__":
             # See if we need to execute something from the command line arguments:
             if encrypt:
                 slacker.log(f"Need to encrypt: {encrypt}")
-                if key != None:
-                    slacker.encryptionKey=key
+                if cli_key != None:
+                    slacker.encryptionKey=cli_key
                 print(slacker.encryptPassword(encrypt))
                 exit(0)
             # No 'one of' task to execute.  Load the web browser and do the thing this app was built for:
