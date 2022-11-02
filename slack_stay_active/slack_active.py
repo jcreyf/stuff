@@ -14,13 +14,9 @@
 #                                                                                                          #
 # Install the Selenium and Webdriver Manager packages:                                                     #
 # (make sure to have Selenium v4 or greater installed!)                                                    #
-#   pip install selenium cerberus                                                                          #
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   pip install webdriver-manager cerberus                                                                 #
+#   pip install selenium webdriver-manager cerberus pyyaml pycryptodome                                    #
 # or                                                                                                       #
-#   conda install -c conda-forge selenium cerberus                                                         #
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   conda install -c conda-forge webdriver-manager cerberus                                                #
+#   conda install -c conda-forge selenium webdriver-manager cerberus pyyaml pycryptodome                   #
 #                                                                                                          #
 # Run as a process in the background:                                                                      #
 #   /> nohup /<...>/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &         #
@@ -65,6 +61,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
+# We need the webdriver_manager to auto-download drivers:
+# This is not a Selenium package!  https://github.com/SergeyPirogov/webdriver_manager
 from webdriver_manager.chrome import ChromeDriverManager
 # Needed to validate and normalize the config-file:
 from cerberus import Validator
@@ -472,6 +470,7 @@ class SlackActive:
         self.logDebug("Configure web browser...")
         chrome_options = Options()
         # Find a list of arguments here:
+        #   https://chromedriver.chromium.org/capabilities
         #   https://peter.sh/experiments/chromium-command-line-switches/
         chrome_options.add_argument(f"window-position={self.webbrowserPosition}")
         chrome_options.add_argument(f"window-size={self.webbrowserSize}")
@@ -493,13 +492,22 @@ class SlackActive:
             chrome_options.add_argument("--headless")
 
         self.logDebug("Open web browser...")
-        # Open the web browser:
+        # ChromeDriverManager docs:
+        #   https://chromedriver.chromium.org/home
+        #   https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/
+        #   https://github.com/SergeyPirogov/webdriver_manager
+        # Download the wanted Chrome web driver (if not present yet on your machine).
         # The WebDriverManager will download some version of the chrome driver if it's not there yet on disk.
         # By default, the version will be 'latest' but we can set it to some specific version if the latest version
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self.webbrowserVersion).install()), options=chrome_options)
+        _chrome_version = None
+        if not self.webbrowserVersion == "latest":
+            _chrome_version = self.webbrowserVersion
+        _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
+        # Open the web browser:
+        self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
         #                from unknown error: unexpected command response
