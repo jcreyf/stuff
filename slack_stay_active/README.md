@@ -90,7 +90,12 @@ export JC_SECRETS_KEY=<key_string>
 ## Installation on Mac:
 
 Skip all the Anaconda steps if you're not interested in setting up separate, shielded Python runtime environments.
+Run this if you decide to not go with Anaconda:
+```
+pip install selenium webdriver-manager cerberus yaml pycryptodome packaging
+```
 
+If you do decide to setup an Anaconda environment:
 - Install Anaconda:
 ```
 /> brew install anaconda
@@ -98,6 +103,7 @@ Skip all the Anaconda steps if you're not interested in setting up separate, shi
 
 - Setup your shell:  
 (`conda init zsh` if you're using the default ZSH shell)  
+I use bash:
 ```
 /> conda init bash
 ```
