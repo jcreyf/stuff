@@ -4,6 +4,9 @@
 #                                                                                                          #
 # Arguments:                                                                                               #
 #    --encrypt <string> | -e <string>        :encrypt a string so that we can copy/paste it into our yaml  #
+#    --key <string> | -k <string>            :optional 2ndary encryption key                               #
+#    --test                                  :test the app all the way up to the loading of the webbrowser.#
+#                                             This can be helpfull to validate the configuration file.     #
 #                                                                                                          #
 # -------------------------------------------------------------------------------------------------------- #
 # Going with Selenium because we need more than just web scraping.  We need to provide user input as if    #
@@ -11,13 +14,9 @@
 #                                                                                                          #
 # Install the Selenium and Webdriver Manager packages:                                                     #
 # (make sure to have Selenium v4 or greater installed!)                                                    #
-#   pip install selenium                                                                                   #
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   pip install webdriver-manager                                                                          #
+#   pip install selenium webdriver-manager cerberus pyyaml pycryptodome                                    #
 # or                                                                                                       #
-#   conda install -c conda-forge selenium                                                                  #
-# Webdriver-manager is no longer needed in Selenium v4 and up.  The driver is now built in Selenium.       #
-#   conda install -c conda-forge webdriver-manager                                                         #
+#   conda install -c conda-forge selenium webdriver-manager cerberus pyyaml pycryptodome                   #
 #                                                                                                          #
 # Run as a process in the background:                                                                      #
 #   /> nohup /<...>/jcreyf/stuff/slack_stay_active/slack_active.py 2>&1 > ~/tmp/slack_active.log &         #
@@ -31,10 +30,18 @@
 #  2022-07-18  v1.3  jcreyf  Make the webpage resize optional (as in ignoring any errors if it fails)      #
 #                            Also make the Okta 2FA step optional (adding a check for it and only go       #
 #                            go through the 2FA step if it looks like we need it.                          #
+#  2022-10-26  v1.4  jcreyf  - add config for activation times (when to set yourself online/offline and on #
+#                            what days).  This will make it easier to run the tool as a daemon in the      #
+#                            background and still come over believable instead of showing online 24/7      #
+#                            every day of the week all year long.                                          #
+#                            - make the webpage resize configurable.                                       #
+#                            - validate and normalize the config-file;                                     #
+#                            - add the '--test' CLI flag to test the app without loading the web page;     #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
+#   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
 #
 import os
 import sys
@@ -42,6 +49,8 @@ import time
 import selenium
 import yaml
 import signal
+import ast
+import pprint
 
 from datetime import datetime
 from random import randint
@@ -52,7 +61,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
+# We need the webdriver_manager to auto-download drivers:
+# This is not a Selenium package!  https://github.com/SergeyPirogov/webdriver_manager
 from webdriver_manager.chrome import ChromeDriverManager
+# Needed to validate and normalize the config-file:
+from cerberus import Validator
 
 # Load my own encryption class:
 # This needs:
@@ -85,7 +98,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.3 - 2022-07-18"
+    __version__ = "v1.4 - 2022-10-26"
 
     @staticmethod
     def version() -> str:
@@ -95,110 +108,111 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
-        self._debug = False                 # Make the web browser visible and print messages in the console to show what's happening;
-        self._enabled = True                # Enable click events in the web browser in the Slack page;
-        self._click_random = False          # Sleep a random number of seconds between clicks;
-        self._click_seconds = 60            # Number of seconds between repeating the clicks;
-        self._slack_org_url = ""            # The url of your Slack page that has the message textbox;
-        self._slack_workspace = ""          # The name of your Slack Workspace;
-        self._slack_username = ""           # Username to log on with in Slack (if needed);
-        self._slack_password = ""           # Password of the user to log on with;
-        self._encryption_key = None         # The key that was used to encrypt the password;
-        self._webbrowser = None             # Object holding a reference to the web browser;
-        self._webbrowser_data_dir = "/tmp"  # The user's data directory for the web browser (where session info is stored)
-        self._webbrowser_position = "5,10"  # "X,Y" pixel position of browser window on main desktop;
-        self._webbrowser_size = "300,500"   # "width,height" pixel size of browser window;
-        self._webbrowser_version = "latest" # the version of Selenium chromedriver to use;
+        self._settings = {}                 # Dictionary with our settings loaded from the config-file;
+
 
     def __del__(self):
         """ Destructor will close the web browser and cleanup. """
 #        self.end()
         pass
 
+
     def end(self):
         """ Method to close the web browser and cleanup resources. """
-        self.log("Closing the web browser...")
-        try:
-            self._webbrowser.quit()
-            self._webbrowser = None
-        except:
-            pass
+        # Close the webbrowser window (if we have one):
+        if hasattr(self, '_webbrowser'):
+            self.log("Closing the web browser...")
+            try:
+                self._webbrowser.quit()
+                self._webbrowser = None
+            except:
+                pass
+
 
     @property
     def debug(self) -> bool:
-        return self._debug
+        return self._settings['config']['debug']
 
     @debug.setter
     def debug(self, flag: bool):
-        self._debug = flag
+        self._settings['config']['debug'] = flag
+
 
     @property
     def enabled(self) -> bool:
-        return self._enabled
+        return self._settings['config']['enabled']
 
     @enabled.setter
     def enabled(self, flag: bool):
-        self._enabled = flag
+        self._settings['config']['enabled'] = flag
+
 
     @property
     def clickRandom(self) -> bool:
-        return self._click_random
+        return self._settings['config']['click']['random']
 
     @clickRandom.setter
     def clickRandom(self, flag: bool):
-        self._click_random = flag
+        self._settings['config']['click']['random'] = flag
+
 
     @property
     def clickSeconds(self) -> int:
-        return self._click_seconds
+        return self._settings['config']['click']['seconds']
 
     @clickSeconds.setter
     def clickSeconds(self, value: int):
-        self._click_seconds = value
+        self._settings['config']['click']['seconds'] = value
+
 
     @property
     def slackURL(self) -> str:
-        return self._slack_org_url
+        return self._settings['config']['slack']['org_url']
 
     @slackURL.setter
     def slackURL(self, value: str):
-        self._slack_org_url = value
+        self._settings['config']['slack']['org_url'] = value
+
 
     @property
     def slackWorkspace(self) -> str:
-        return self._slack_workspace
+        return self._settings['config']['slack']['workspace']
 
     @slackWorkspace.setter
     def slackWorkspace(self, value: str):
-        self._slack_workspace = value
+        self._settings['config']['slack']['workspace'] = value
+
 
     @property
     def slackUserName(self) -> str:
-        return self._slack_username
+        return self._settings['config']['slack']['username']
 
     @slackUserName.setter
     def slackUserName(self, value: str):
-        self._slack_username = value
+        self._settings['config']['slack']['username'] = value
+
 
     @property
     def slackPassword(self) -> str:
-        return self._slack_password
+        return self._settings['config']['slack']['password']
 
     @slackPassword.setter
     def slackPassword(self, value: str):
-        self._slack_password = value
+        self._settings['config']['slack']['password'] = value
+
 
     @property
     def encryptionKey(self) -> str:
-        return self._encryption_key
+        return self._settings['config']['slack']['encryption_key']
 
     @encryptionKey.setter
     def encryptionKey(self, value: str):
-        self._encryption_key = value
+        self._settings['config']['slack']['encryption_key'] = value
+
 
     @property
     def webbrowserDataDir(self) -> str:
-        return self._webbrowser_data_dir
+        return self._settings['config']['webbrowser']['data_dir']
 
     @webbrowserDataDir.setter
     def webbrowserDataDir(self, value: str):
@@ -209,25 +223,46 @@ class SlackActive:
         Linux: ~/.config/google-chrome/default
         """
 # ToDo: should we check if the directory exists?
-        self._webbrowser_data_dir = value
+        self._settings['config']['webbrowser']['data_dir'] = value
+
 
     @property
     def webbrowserPosition(self) -> str:
-        return self._webbrowser_position
+        return self._settings['config']['webbrowser']['window_position']
 
     @webbrowserPosition.setter
     def webbrowserPosition(self, value: str):
 # ToDo: should we do some data validation here to make sure we got a valid coordinate?
-        self._webbrowser_position = value
+        self._settings['config']['webbrowser']['window_position'] = value
+
 
     @property
     def webbrowserSize(self) -> str:
-        return self._webbrowser_size
+        return self._settings['config']['webbrowser']['window_size']
 
     @webbrowserSize.setter
     def webbrowserSize(self, value: str):
 # ToDo: should we do some data validation here to make sure we got valid size values?
-        self._webbrowser_size = value
+        self._settings['config']['webbrowser']['window_size'] = value
+
+
+    @property
+    def webbrowserVersion(self) -> str:
+        return self._settings['config']['webbrowser']['chrome_version']
+
+    @webbrowserVersion.setter
+    def webbrowserVersion(self, value: str):
+        self._settings['config']['webbrowser']['chrome_version'] = value
+
+
+    @property
+    def webpageSize(self) -> str:
+        return self._settings['config']['webbrowser']['page_size']
+
+    @webpageSize.setter
+    def webpageSize(self, value: str):
+# ToDo: need to do validation here!
+        self._settings['config']['webbrowser']['page_size'] = value
 
 
     def log(self, msg: str):
@@ -277,8 +312,32 @@ class SlackActive:
                 window_position: 5,10
                 # Window size in "width,height" pixels:
                 window_size: 300,500
+                # Resize the web page (default: 100%):
+                page_size: 75%
                 # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
                 chrome_version: "latest"
+            times:
+                # Be active on these days:
+                - name: Regular Work Week
+                start: 08:45
+                start_random_minutes: 15
+                stop: 18:00
+                stop_random_minutes: 30
+                days: Mo,Tu,We,Th
+                - name: Summer Hours
+                start: 08:45
+                start_random_minutes: 15
+                stop: 13:00
+                stop_random_minutes: 30
+                days: Fr
+            exclusions:
+                - name: End Year
+                date_from: 2022-12-25
+                date_to: 2023-01-02
+                yearly: true
+                - name: PTO
+                date_from: 2022-11-01
+                date_to: 2022-11-01
         """
         # Figure out this app's directory and add the name of the config-file to load:
         _configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
@@ -286,128 +345,77 @@ class SlackActive:
         # Load the config file:
         with open(_configFile, "r") as stream:
             try:
-                settings = yaml.safe_load(stream)
+                _settings = yaml.safe_load(stream)
             except yaml.YAMLError as e:
+                print("Failed to read the config file!")
                 print(e)
                 sys.exit(1)
 
-        # Parse the self._debug-flag and set a default if not found:
-        try:
-            val = settings['config']['debug']
-            if not val is None:
-                self.debug = val
-        except Exception as ex:
-            self.logDebug(f"load error! {ex}")
+        # Load the schema definition file so that we can validate the config-file:
+        _configSchemaFile = f"{os.path.dirname(os.path.realpath(__file__))}/config.schema"
+        self.log(f"Load schema definition: {_configSchemaFile}")
+        with open(_configSchemaFile, 'r') as stream:
+            try:
+                _config_schema_definition = stream.read()
+                # Remove comment-lines and turn the string into a dict:
+                # (using eval() could be used too but is not secure since it can execute commands in strings!)
+                _config_schema_definition = ast.literal_eval(_config_schema_definition)
+            except Exception as e:
+                print("Failed to read the config schema definition file!")
+                print(e)
+                sys.exit(1)
 
-        # Parse the self._enabled-flag and set a default if not found:
-        try:
-            val = settings['config']['enabled']
-            if not val is None:
-                self.enabled = val
-        except Exception as ex:
-            self.log(f"ENABLED load error! {ex}")
-
-        # Parse the random flag and set a default if not found:
-        try:
-            val = settings['config']['click']['random']
-            if not val is None:
-                self.clickRandom = val
-        except Exception as ex:
-            self.log(f"Click Random flag load error! {ex}")
-
-        # Get the max number of seconds between clicks:
-        try:
-            self._click_seconds = settings['config']['click']['seconds']
-            if self.clickSeconds is None:
-                self.clickSeconds = 60
-        except Exception as ex:
-            self.log(f"Click Seconds load error! {ex}")
-
-        # Parse the url to the Slack web page and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['org_url']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.org_url'!")
-            else:
-                self.slackURL = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the url to your Slack org!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
+        # Validate the config:
+        validator = Validator(_config_schema_definition, purge_unknown = True)
+        if validator.validate(_settings):
+            # The config is fine.  Normalize it to add potential missing optional settings:
+            self._settings = validator.normalized(_settings)
+        else:
+            # The config has issues!
+            print("The config has issues!!!")
+            print(validator.errors)
             sys.exit(1)
 
-        # Parse the workspace name in the Slack or and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['workspace']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.workspace'!")
+        # Try set the encryption key from either the command-line of from the environment variable
+        # if it's not set in the config-file:
+        if self.encryptionKey == '':
+            if cli_key == None:
+                try:
+                    self.encryptionKey = os.environ['JC_SECRETS_KEY']
+                except Exception as e:
+                    self.log("We don't have the encryption key!")
+                    self.log("Add it to the config-file or set environment variable: JC_SECRETS_KEY")
+                    sys.exit(1)
             else:
-                self.slackWorkspace = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the workspace in your Slack org!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
+                self.encryptionKey = cli_key
 
-        # Parse the Slack user name and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['username']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.username'!")
-            else:
-                self.slackUserName = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the username to log on to Slack!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
+        # Did we get 'times' in the configs?
+        if 'times' in self._settings['config'].keys():
+            for time_range in self._settings['config']['times']:
+                self.log(f"Time Range: {time_range['name']}")
+                self.log(f"  start time: {time_range['start']} (random {time_range['start_random_minutes']} min)")
+                self.log(f"  stop time: {time_range['stop']} (random {time_range['stop_random_minutes']} min)")
+                self.log(f"  week days: {time_range['days']}")
+        else:
+            self.log("No 'times' found in the config.  Using defaults (24/7)")
 
-        # Parse the Slack user password and throw an error if we didn't get it:
-        try:
-            val = settings['config']['slack']['password']
-            if val is None:
-                raise KeyError("Need a value for 'config.slack.password'!")
-            else:
-                self.slackPassword = val
-        except KeyError as err:
-            self.log("Can't do anything if I don't have the password to log on to Slack!")
-            self.log("Set it in 'slack_active.yaml'")
-            self.log(f"Error: {err}")
-            sys.exit(1)
-
-        # Parse the web browser data directory for the user and throw an error if we didn't get it:
-        try:
-            val = settings['config']['webbrowser']['data_dir']
-            if not val is None:
-                self.webbrowserDataDir = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser data directory' load error! {err}")
-
-        # Load the settings for the web browser position on screen:
-        try:
-            val = settings['config']['webbrowser']['window_position']
-            if not val is None:
-                self.webbrowserPosition = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser position' load error! {err}")
-
-        # Load the setting for the web browser window size on screen:
-        try:
-            val = settings['config']['webbrowser']['window_size']
-            if not val is None:
-                self.webbrowserSize = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser size' load error! {err}")
-
-        # Load the setting for which Chrome version to download and use:
-        try:
-            val = settings['config']['webbrowser']['chrome_version']
-            if not val is None:
-                self._webbrowser_version = val
-        except KeyError as err:
-            self.log(f"Setting for 'Web browser version' load error! {err}")
+        # Did we get any 'exclusions' in the config?
+        if 'exclusions' in self._settings['config'].keys():
+            for exclusion in self._settings['config']['exclusions']:
+                self.log(f"Exclusion: {exclusion['name']}")
+                self.log(f"  from: {exclusion['date_from']}")
+                self.log(f"  to: {exclusion['date_to']}")
+                if 'yearly' in exclusion.keys():
+                    self.log(f"  yearly: {exclusion['yearly']}")
+                else:
+                    self.log(f"  yearly: No")
+        else:
+            self.log("No runtime 'exclusions' in the config")
 
         # Display the configuration settings:
+        if self.debug:
+            self.logDebug(f"Config:\n{pprint.pformat(self._settings)}")
+
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
         self.log(f"Click random: {self.clickRandom}")
@@ -419,9 +427,9 @@ class SlackActive:
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
         self.log("Web browser:")
-        self.log(f"  Chrome version to use: {self._webbrowser_version}")
+        self.log(f"  Chrome version to use: {self.webbrowserVersion}")
         self.log(f"  data directory: {self.webbrowserDataDir}")
-        self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels")
+        self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels (webpage size: {self.webpageSize})")
 
 
     def encryptPassword(self, value: str, key: str = None) -> str:
@@ -466,9 +474,13 @@ class SlackActive:
         self.logDebug("Configure web browser...")
         chrome_options = Options()
         # Find a list of arguments here:
+        #   https://chromedriver.chromium.org/capabilities
         #   https://peter.sh/experiments/chromium-command-line-switches/
         chrome_options.add_argument(f"window-position={self.webbrowserPosition}")
         chrome_options.add_argument(f"window-size={self.webbrowserSize}")
+        # 2022-10-27: the ChromeDriver is ignoring these zoom settings:
+        chrome_options.add_argument("force-device-scale-factor=0.75")
+        chrome_options.add_argument("high-dpi-support=0.75")
         # Set the Google Chrome user profile dir.
         # This enables us to save the session information and with that, bypass a bunch of redirection and authentication
         # hoops if we want to run this frequently.  The browser will only force us through the Okta auth when the session
@@ -478,19 +490,28 @@ class SlackActive:
         #   Linux: ~/.config/google-chrome/default
         chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
 
-        if not self._debug:
+        if not self.debug:
             # Run the web browser hidden in the background.
             # Set the option to hide it:
             chrome_options.add_argument("--headless")
 
         self.logDebug("Open web browser...")
-        # Open the web browser:
+        # ChromeDriverManager docs:
+        #   https://chromedriver.chromium.org/home
+        #   https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/
+        #   https://github.com/SergeyPirogov/webdriver_manager
+        # Download the wanted Chrome web driver (if not present yet on your machine).
         # The WebDriverManager will download some version of the chrome driver if it's not there yet on disk.
         # By default, the version will be 'latest' but we can set it to some specific version if the latest version
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-        self._webbrowser = webdriver.Chrome(service=Service(ChromeDriverManager(version=self._webbrowser_version).install()), options=chrome_options)
+        _chrome_version = None
+        if not self.webbrowserVersion == "latest":
+            _chrome_version = self.webbrowserVersion
+        _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
+        # Open the web browser:
+        self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
         #                from unknown error: unexpected command response
@@ -506,17 +527,6 @@ class SlackActive:
         except Exception as err:
             self.logDebug(err)
             raise Exception("We got a timeout!  It's taking too long to load the page.")
-
-        # Zoom out to 75%
-        # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
-        #             -> javascript error: Cannot read properties of null (reading 'style')
-        #             The resize is just a nice to have.  Ignoring any potential errors here:
-        self.logDebug("Resize webpage")
-        try:
-            self._webbrowser.execute_script(f"document.body.style.zoom='75%'")
-            self._webbrowser.refresh()
-        except Exception:
-            self.logDebug("There was an issue resizing the webpage")
 
         # We may already be on the Slack page at this point if we had a valid session and cookies in our Chrome cache.
         # Let's see if we can see the Slack textbox that we use to type a message in:
@@ -610,6 +620,17 @@ class SlackActive:
             #        data-min-lines="1" class="c-texty_input_unstyled ql-container focus">
             webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
 
+        # Resize the webpage
+        # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
+        #             -> javascript error: Cannot read properties of null (reading 'style')
+        #             The resize is just a nice to have.  Ignoring any potential errors here:
+        self.logDebug(f"Resize webpage to: {self.webpageSize}")
+        try:
+            self._webbrowser.execute_script(f"document.body.style.zoom='{self.webpageSize}'")
+            self._webbrowser.refresh()
+        except Exception:
+            self.logDebug("There was an issue resizing the webpage")
+
         self.log("The Slack page is loaded and ready.")
 
 
@@ -641,9 +662,6 @@ class SlackActive:
         if self._webbrowser is None:
             raise Exception("Web browser not loaded!")
 
-        # Zoom out to 50%
-        self._webbrowser.execute_script(f"document.body.style.zoom='50%'")
-        self._webbrowser.refresh()
         # We're on the page that we need.  Let's wait and make sure everything is loaded and ready for us to start clicking:
         msg_box = WebDriverWait(self._webbrowser, timeout=60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div[data-qa='message_input']")))
         self.logDebug("Slack page loaded and ready...")
@@ -680,6 +698,9 @@ if __name__ == "__main__":
     parser.add_argument("--version", \
                             action="version", \
                             version=SlackActive.__version__)
+    parser.add_argument("--test", \
+                            action="store_true", \
+                            help="Test the app without opening a webbrowser and accessing Slack")
     parser.add_argument("-e", "--encrypt", \
                             dest="__ENCRYPT", \
                             required=False, \
@@ -695,7 +716,11 @@ if __name__ == "__main__":
 
     # Pull out the values that we want:
     encrypt=__ARGS.__ENCRYPT
-    key=__ARGS.__KEY
+    cli_key=__ARGS.__KEY
+    TEST=__ARGS.test
+
+    if TEST:
+        print("** TEST MODE **")
 
     # Run the app.
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
@@ -711,13 +736,19 @@ if __name__ == "__main__":
             # See if we need to execute something from the command line arguments:
             if encrypt:
                 slacker.log(f"Need to encrypt: {encrypt}")
-                if key != None:
-                    slacker.encryptionKey=key
+                if cli_key != None:
+                    slacker.encryptionKey=cli_key
                 print(slacker.encryptPassword(encrypt))
                 exit(0)
             # No 'one of' task to execute.  Load the web browser and do the thing this app was built for:
-            slacker.loadWebBrowser()
-            slacker.stayActive()
+            # (if we're not in TEST mode)
+            if TEST:
+                # TEST mode goes through all steps of the app up to the opening of the webbrowser.
+                # So don't do that here and exit out of the loop:
+                _loop = False
+            else:
+                slacker.loadWebBrowser()
+                slacker.stayActive()
         except SlackTimeout as ex:
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")

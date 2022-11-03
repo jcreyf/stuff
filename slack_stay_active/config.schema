@@ -1,0 +1,178 @@
+#
+# Cerberus schema definition for our config-file.
+# We are using this template in our app to validate the 'slack_active.yaml' file.
+#
+# Cerberus docs:
+#   https://docs.python-cerberus.org/en/stable/
+#
+{
+    'config': {
+        'required': True,
+        'type': 'dict',
+        'schema': {
+            'enabled': {
+                'required': False,
+                'type': 'boolean',
+                'default': True
+            },
+            'debug': {
+                'required': False,
+                'type': 'boolean',
+                'default': False
+            },
+            'click': {
+                'required': False,
+                'type': 'dict',
+                'schema': {
+                    'random': {
+                        'required': False,
+                        'type': 'boolean',
+                        'default': False
+                    },
+                    'seconds': {
+                        'required': False,
+                        'type': 'integer',
+                        'default': 60
+                    }
+                }
+            },
+            'slack': {
+                'required': True,
+                'type': 'dict',
+                'schema': {
+                    'org_url': {
+                        'required': True,
+                        'type': 'string'
+                        # regex url
+                    },
+                    'workspace': {
+                        'required': True,
+                        'type': 'string'
+                    },
+                    'username': {
+                        'required': True,
+                        'type': 'string',
+                        'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                    },
+                    'password': {
+                        'required': True,
+                        'type': 'string'
+                    },
+                    'encryption_key': {
+                        'required': False,
+                        'type': 'string',
+                        'default': ''
+#                        'default_setter': lambda k: k['JC_SECRETS_KEY']
+#                        'default_setter': lambda k: os.environ['JC_SECRETS_KEY']
+                    }
+                }
+            },
+            'webbrowser': {
+                'required': True,
+                'type': 'dict',
+                'schema': {
+                    'data_dir': {
+                        'required': False,
+                        'type': 'string'
+                        # regex path
+                    },
+                    'window_position': {
+                        'required': False,
+                        'type': 'string',
+                        'default': '5,10'
+                        # regex
+                    },
+                    'window_size': {
+                        'required': False,
+                        'type': 'string',
+                        'default': '300,500'
+                        # regex
+                    },
+                    'page_size': {
+                        'required': False,
+                        'type': 'string',
+                        'default': '75%'
+                        # regex
+                    },
+                    'chrome_version': {
+                        'required': False,
+                        'type': 'string',
+                        'default': 'latest'
+                        # regex?
+                    }
+                }
+            },
+            'times': {
+                'required': False,
+                'type': 'list',
+                'schema': {
+                    'type': 'dict',
+                    'schema': {
+                        'name': {
+                            'required': True,
+                            'type': 'string'
+                        },
+                        'start': {
+                            'required': True,
+                            'type': 'string'
+                            # turn into 'datetime'?
+                            # regex HH:MM
+                        },
+                        'start_random_minutes': {
+                            'required': True,
+                            'type': 'integer',
+                            'default': 0
+                            # regex minutes
+                        },
+                        'stop': {
+                            'required': True,
+                            'type': 'string'
+                            # turn into 'datetime'?
+                            # regex HH:MM
+                        },
+                        'stop_random_minutes': {
+                            'required': True,
+                            'type': 'integer',
+                            'default': 0
+                            # regex minutes
+                        },
+                        'days': {
+                            'required': True,
+                            'type': 'string'
+                            # regex?
+                            # check_with?
+                        }
+                    }
+                }
+            },
+            'exclusions': {
+                'required': False,
+                'type': 'list',
+                'schema': {
+                    'type': 'dict',
+                    'schema': {
+                        'name': {
+                            'required': True,
+                            'type': 'string'
+                        },
+                        'date_from': {
+                            'required': True,
+                            'type': 'date'
+                            # regex
+                        },
+                        'date_to': {
+                            'required': True,
+                            'type': 'date'
+                            # regex
+                        },
+                        'yearly': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
