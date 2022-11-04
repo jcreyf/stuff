@@ -51,6 +51,7 @@ import yaml
 import signal
 import ast
 import pprint
+from time_exclusions import TimeExclusions
 
 from datetime import datetime
 from random import randint
@@ -109,6 +110,7 @@ class SlackActive:
     def __init__(self):
         """ Constructor, initializing properties with default values. """
         self._settings = {}                 # Dictionary with our settings loaded from the config-file;
+        self._timeexclusion = None          # Object that decides if the current time is a valid trigger time;
 
 
     def __del__(self):
@@ -390,28 +392,10 @@ class SlackActive:
             else:
                 self.encryptionKey = cli_key
 
-        # Did we get 'times' in the configs?
-        if 'times' in self._settings['config'].keys():
-            for time_range in self._settings['config']['times']:
-                self.log(f"Time Range: {time_range['name']}")
-                self.log(f"  start time: {time_range['start']} (random {time_range['start_random_minutes']} min)")
-                self.log(f"  stop time: {time_range['stop']} (random {time_range['stop_random_minutes']} min)")
-                self.log(f"  week days: {time_range['days']}")
-        else:
-            self.log("No 'times' found in the config.  Using defaults (24/7)")
-
-        # Did we get any 'exclusions' in the config?
-        if 'exclusions' in self._settings['config'].keys():
-            for exclusion in self._settings['config']['exclusions']:
-                self.log(f"Exclusion: {exclusion['name']}")
-                self.log(f"  from: {exclusion['date_from']}")
-                self.log(f"  to: {exclusion['date_to']}")
-                if 'yearly' in exclusion.keys():
-                    self.log(f"  yearly: {exclusion['yearly']}")
-                else:
-                    self.log(f"  yearly: No")
-        else:
-            self.log("No runtime 'exclusions' in the config")
+        self._timeexclusion = TimeExclusions(times=self._settings['config']['times'], exclusions=self._settings['config']['exclusions'])
+        self._timeexclusion.debug=self.debug
+        self._timeexclusion.logTimes()
+        self._timeexclusion.logExclusions()
 
         # Display the configuration settings:
         if self.debug:
@@ -669,7 +653,10 @@ class SlackActive:
         # Loop forever, clicking the textbox every so many seconds:
         _seconds = self.clickSeconds
         while True:
-            self.clickTextbox()
+            # Click the Slack textbox if we're in a working time window:
+            if self._timeexclusion.checkNow():
+                self.clickTextbox()
+            # Get a new number of seconds if we need random behavior:
             if self.clickRandom:
                 _seconds = randint(1, self.clickSeconds)
             time.sleep(_seconds)
