@@ -168,7 +168,7 @@
                         'yearly': {
                             'required': False,
                             'type': 'boolean',
-                            'default': True
+                            'default': False
                         }
                     }
                 }
