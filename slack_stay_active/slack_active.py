@@ -366,6 +366,7 @@ class SlackActive:
                 sys.exit(1)
 
         # Validate the config:
+        self.log(f"Validating config...")
         validator = Validator(_config_schema_definition, purge_unknown = True)
         if validator.validate(_settings):
             # The config is fine.  Normalize it to add potential missing optional settings:
