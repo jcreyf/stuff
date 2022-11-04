@@ -87,15 +87,38 @@ class TimeExclusions:
             # See if the date falls in an exclusion window:
             self.logDebug("Checking 'exclusion' windows...")
             for _exclusion in self._exclusions:
-                # We need to strip off the year from the date if this exclusion happens yearly:
+                _date_from = _exclusion['date_from']
+                _date_to = _exclusion['date_to']
+                _log = None
+                # We need to manipulate the from/to years in the exclusion config if this exclusion happens yearly:
                 if _exclusion['yearly']:
-                    self.logDebug("This is a yearly exclusion")
+                    # We need to delay logging to avoid log info being shown for yearly exclusion windows that are
+                    # not relevant for the time we're checking!
+                    _log = [f"'{_exclusion['name']}' is a yearly exclusion!  We need to shift exclusion years."]
+                    # This is a bit more complicated and maybe not the best way of doing this.
+                    # We're basically generating new exclusion date objects based on the same year of the date
+                    # we need to check.  The end year of the exclusion window may be in the next year(s), so we
+                    # need to do some simple math to potentially shift end years:
+                    _checkYear = timestamp.year
+                    _fromYear = _date_from.year
+                    _toYear = _date_to.year
+                    _spanYear = _toYear - _fromYear
+                    _log.append(f"Year in date to check: '{_checkYear}'; Exclusion years: from '{_fromYear}' to '{_toYear}' (delta: {_spanYear} year)")
+                    _fromDate = f"{_checkYear}-{_date_from.month}-{_date_from.day}"
+                    _toDate = f"{_checkYear + _spanYear}-{_date_to.month}-{_date_to.day}"
+                    _date_from = datetime.strptime(_fromDate, "%Y-%m-%d").date()
+                    _date_to = datetime.strptime(_toDate, "%Y-%m-%d").date()
+                    _log.append(f"Using updated exclusion window: '{_date_from}' to '{_date_to}'")
 
-                if _exclusion['date_from'] <= timestamp.date() <= _exclusion['date_to']:
+                if _date_from <= timestamp.date() <= _date_to:
                     # This is an exclusion day on which we don't work!
+                    # Output the log if we had to manipulate the yearly exclusion window:
+                    for _logLine in _log:
+                        self.logDebug(_logLine)
                     self.logDebug(f"'{timestamp.date()}' falls in exclusion window: '{_exclusion['name']}'")
                     return False
-            self.logDebug("Not an exclusion day")
+            # The date to check does not fall in any of the configured exclusion windows:
+            self.logDebug("The day to check is not an exclusion day")
 
         # Check the time of day against the 'times' configurations:
         if self._times == None or len(self._times) == 0:

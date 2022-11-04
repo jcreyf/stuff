@@ -129,8 +129,8 @@ class SlackActive:
                 self._webbrowser = None
             except:
                 pass
-        flag = self._timeexclusion.checkTime(datetime.strptime("2022-11-04 14:32:54", "%Y-%m-%d %H:%M:%S"))
-        self.logDebug(f"timeCheck: {flag}")
+#        flag = self._timeexclusion.checkTime(datetime.strptime("2022-12-22 14:32:54", "%Y-%m-%d %H:%M:%S"))
+#        self.logDebug(f"timeCheck: {flag}")
 
 
     @property
