@@ -129,8 +129,6 @@ class SlackActive:
                 self._webbrowser = None
             except:
                 pass
-#        flag = self._timeexclusion.checkTime(datetime.strptime("2022-12-22 14:32:54", "%Y-%m-%d %H:%M:%S"))
-#        self.logDebug(f"timeCheck: {flag}")
 
 
     @property
@@ -739,6 +737,10 @@ if __name__ == "__main__":
                 # TEST mode goes through all steps of the app up to the opening of the webbrowser.
                 # So don't do that here and exit out of the loop:
                 _loop = False
+                # Test the time exclusion check:
+                slacker.log("Test time exclusions...")
+                flag = slacker._timeexclusion.checkTime(datetime.now())
+                slacker.log(f"timeCheck: {flag}")
             else:
                 slacker.loadWebBrowser()
                 slacker.stayActive()
