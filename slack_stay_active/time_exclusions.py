@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 
 class TimeExclusions:
     """
@@ -184,9 +185,15 @@ class TimeExclusions:
             # We have a valid time window config to check.
             # Convert the time strings to time objects:
             _time = timestamp.time()
-            _start = datetime.strptime(timeWindow['start'], '%H:%M').time()
-            _stop = datetime.strptime(timeWindow['stop'], '%H:%M').time()
-            self.logDebug(f"Compare '{_time}' against '{_start}' and '{_stop}'")
+            # Get the start of day time and add a random number of minutes (can be 0 if we didn't specify
+            # a randomizer number in the config)
+            _start = datetime.strptime(timeWindow['start'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['start_random_minutes']))
+            _start = _start.time()
+            # Get the end of day time and add a random number of minutes (can be 0 if we didn't specify
+            # a randomizer number in the config)
+            _stop = datetime.strptime(timeWindow['stop'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['stop_random_minutes']))
+            _stop = _stop.time()
+            self.logDebug(f"Compare '{_time.strftime('%H:%M:%S')}' against '{_start}' and '{_stop}'")
             # Now figure out where the time to check falls within the day:
             if _time < _start:
                 self.logDebug("time is before start time!")
