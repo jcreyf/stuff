@@ -7,3 +7,5 @@ start.sh
 # Ignore temp files and directories:
 *.tmp
 **/temp
+# Ignore typical Python stuff:
+**/__pycache__
