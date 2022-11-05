@@ -3,7 +3,7 @@ from datetime import datetime
 
 class TimeExclusions:
     """
-    Class to check if the current time falls within a valid trigger window.
+    Class to check if a day/time falls within a valid trigger window.
     If there's no time window configured, then we assume that all days are 24/7 trigger days.
     """
 
@@ -15,12 +15,12 @@ class TimeExclusions:
         return f"{os.path.basename(__file__)}: {TimeExclusions.__version__}"
 
 
-    def __init__(self, times: dict, exclusions: dict):
+    def __init__(self):
         """ Constructor, initializing properties with default values. """
         self._days = ["Mo","Tu","We","Th","Fr","Sa","Su"]
         self._debug = False                 # Debug logging level;
-        self._times = times                 # Dictionary with date/time windows;
-        self._exclusions = exclusions       # Dictionary with date exclusion windows;
+        self._times = {}                    # Dictionary with date/time windows;
+        self._exclusions = {}               # Dictionary with date exclusion windows;
 
 
     @property
@@ -30,6 +30,24 @@ class TimeExclusions:
     @debug.setter
     def debug(self, flag: bool):
         self._debug = flag
+
+
+    @property
+    def times(self) -> dict:
+        return self._times
+
+    @times.setter
+    def times(self, times: dict):
+        self._times = times
+
+
+    @property
+    def exclusions(self) -> dict:
+        return self._exclusions
+
+    @exclusions.setter
+    def exclusions(self, exclusions: dict):
+        self._exclusions = exclusions
 
 
     def log(self, msg: str):
@@ -48,7 +66,11 @@ class TimeExclusions:
 
 
     def logTimes(self):
-        # Did we get 'times'?
+        """ Method to log the configured 'time' windows.
+
+        These are time windows in days where we need to return a trigger.
+        A time-window specifies a start and stop time when we want a process to run.
+        """
         if len(self._times) > 0:
             for time_range in self._times:
                 self.log(f"Time Range: {time_range['name']}")
@@ -60,7 +82,12 @@ class TimeExclusions:
 
 
     def logExclusions(self):
-        # Did we get any 'exclusions'?
+        """ Method to log the configured 'exclusion' windows.
+
+        These are day windows on which we don't want to return a trigger.
+        We can for example decide not to return any run triggers on January 1st, 2023.
+        An exclusion counts for 24 hours and can be auto-repeat yearly.
+        """
         if len(self._exclusions) > 0:
             for exclusion in self._exclusions:
                 self.log(f"Exclusion: {exclusion['name']}")
@@ -75,10 +102,18 @@ class TimeExclusions:
 
 
     def checkNow(self) -> bool:
+        """ Method to check if the current day/time is a valid trigger time.
+        
+        Check if right now is not on an exclusion day and is not outside the start/stop time window.
+        """
         return self.checkTime(datetime.now())
 
 
     def checkTime(self, timestamp: datetime) -> bool:
+        """ Method to check if a specific day/time is a valid trigger time.
+        
+        Check if this specific day/time is not on an exclusion day and is not outside the start/stop time window.
+        """
         dayOfWeek = self._days[timestamp.weekday()]
         self.logDebug(f"Check: {timestamp.strftime('%m/%d %H:%M:%S')} - weekday: {dayOfWeek}")
         # Check if this day falls in an 'exclusions' windows:
@@ -119,6 +154,8 @@ class TimeExclusions:
                     return False
             # The date to check does not fall in any of the configured exclusion windows:
             self.logDebug("The day to check is not an exclusion day")
+        else:
+            self.logDebug("We don't have any 'exclusion' windows configured")
 
         # Check the time of day against the 'times' configurations:
         if self._times == None or len(self._times) == 0:

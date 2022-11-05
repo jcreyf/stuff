@@ -392,10 +392,14 @@ class SlackActive:
             else:
                 self.encryptionKey = cli_key
 
-        # Create an instance of the class that will check for each click if the current time falls
-        # within a valid work window:
-        self._timeexclusion = TimeExclusions(times=self._settings['config']['times'], exclusions=self._settings['config']['exclusions'])
+        # Create an instance of the class that will check for each click if the current time falls within a
+        # valid work window:
+        self._timeexclusion = TimeExclusions()
         self._timeexclusion.debug=self.debug
+        if "times" in self._settings['config']:
+            self._timeexclusion.times = self._settings['config']['times']
+        if "exclusions" in self._settings['config']:
+            self._timeexclusion.exclusions = self._settings['config']['exclusions']
         if self.debug:
             self._timeexclusion.logTimes()
             self._timeexclusion.logExclusions()
