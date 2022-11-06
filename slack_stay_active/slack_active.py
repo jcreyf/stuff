@@ -37,7 +37,10 @@
 #                            - make the webpage resize configurable;                                       #
 #                            - validate and normalize the config-file;                                     #
 #                            - add the '--test' CLI flag to test the app without loading the web page;     #
-#  2022-11-04  v1.5  jcreyf  Auto-detect config file changes and auto-reload the app when this happens.    #
+#  2022-11-04  v1.5  jcreyf  - auto-detect config file changes and auto-reload the app when this happens;  #
+#                            - add a 'hidden' flag to the webbrowser configuration.  The 'debug'-flag was  #
+#                              used to determine if we should show or hide the window but are moving that  #
+#                              to its own flag now;
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -246,6 +249,15 @@ class SlackActive:
 
 
     @property
+    def webbrowserHidden(self) -> bool:
+        return self._settings['config']['webbrowser']['hidden']
+
+    @webbrowserHidden.setter
+    def webbrowserHidden(self, flag: bool):
+        self._settings['config']['webbrowser']['hidden'] = flag
+
+
+    @property
     def webbrowserPosition(self) -> str:
         return self._settings['config']['webbrowser']['window_position']
 
@@ -327,6 +339,8 @@ class SlackActive:
                 data_dir: /home/<user>/.config/google-chrome/Default
                 # on Macs:
                 data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+                # Hide or show (default) the webbrowser on screen:
+                hidden: false
                 # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
                 window_position: 5,10
                 # Window size in "width,height" pixels:
@@ -374,6 +388,7 @@ class SlackActive:
         self._configDate = os.path.getmtime(self.configFile)
 
         # Load the schema definition file so that we can validate the config-file:
+        # I could have used Pydantic for this but I wanted to do this with Cerberus.
         _configSchemaFile = f"{os.path.dirname(os.path.realpath(__file__))}/config.schema"
         self.log(f"Load schema definition: {_configSchemaFile}")
         with open(_configSchemaFile, 'r') as stream:
@@ -502,7 +517,7 @@ class SlackActive:
         #   Linux: ~/.config/google-chrome/default
         chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
 
-        if not self.debug:
+        if self.webbrowserHidden:
             # Run the web browser hidden in the background.
             # Set the option to hide it:
             chrome_options.add_argument("--headless")
@@ -518,7 +533,7 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-# TODO: WTF!!!  This works on Mac but not on Linux!!??
+# ToDo: WTF!!!  This works on Mac but not on Linux!!??  MacOS needs: 'None' and Linux needs: 'latest'????
 #        _chrome_version = None
         _chrome_version = "latest"
         if not self.webbrowserVersion == "latest":
@@ -687,7 +702,7 @@ class SlackActive:
                 self.clickTextbox()
             # Check and see if the config-file got updated before we continue.
             # We need to restart with the new config if it changed!
-            if self.configFileChanged:
+            if self.configFileChanged():
                 # Breaking out of this loop will kick us back to the main application loop, which will restart the app:
                 break
             # Get a new number of seconds if we need random behavior:
