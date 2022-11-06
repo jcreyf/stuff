@@ -76,6 +76,11 @@
                         'type': 'string'
                         # regex path
                     },
+                    'hidden': {
+                        'required': False,
+                        'type': 'boolean',
+                        'default': False
+                    },
                     'window_position': {
                         'required': False,
                         'type': 'string',

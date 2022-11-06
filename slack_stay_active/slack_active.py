@@ -33,10 +33,14 @@
 #  2022-10-26  v1.4  jcreyf  - add config for activation times (when to set yourself online/offline and on #
 #                            what days).  This will make it easier to run the tool as a daemon in the      #
 #                            background and still come over believable instead of showing online 24/7      #
-#                            every day of the week all year long.                                          #
-#                            - make the webpage resize configurable.                                       #
+#                            every day of the week all year long;                                          #
+#                            - make the webpage resize configurable;                                       #
 #                            - validate and normalize the config-file;                                     #
 #                            - add the '--test' CLI flag to test the app without loading the web page;     #
+#  2022-11-04  v1.5  jcreyf  - auto-detect config file changes and auto-reload the app when this happens;  #
+#                            - add a 'hidden' flag to the webbrowser configuration.  The 'debug'-flag was  #
+#                              used to determine if we should show or hide the window but are moving that  #
+#                              to its own flag now;
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -99,7 +103,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.4 - 2022-10-26"
+    __version__ = "v1.5 - 2022-11-04"
 
     @staticmethod
     def version() -> str:
@@ -109,6 +113,8 @@ class SlackActive:
 
     def __init__(self):
         """ Constructor, initializing properties with default values. """
+        self._configFile = None             # Full path to the config-file;
+        self._configDate = None             # Modification date of the config-file;
         self._settings = {}                 # Dictionary with our settings loaded from the config-file;
         self._timeexclusion = None          # Object that decides if the current time is a valid trigger time;
 
@@ -129,6 +135,20 @@ class SlackActive:
                 self._webbrowser = None
             except:
                 pass
+
+
+    @property
+    def configFile(self) -> str:
+        return self._configFile
+
+    @configFile.setter
+    def configFile(self, path: str):
+        self._configFile = path
+
+
+    @property
+    def configDate(self) -> time:
+        return self._configDate
 
 
     @property
@@ -229,6 +249,15 @@ class SlackActive:
 
 
     @property
+    def webbrowserHidden(self) -> bool:
+        return self._settings['config']['webbrowser']['hidden']
+
+    @webbrowserHidden.setter
+    def webbrowserHidden(self, flag: bool):
+        self._settings['config']['webbrowser']['hidden'] = flag
+
+
+    @property
     def webbrowserPosition(self) -> str:
         return self._settings['config']['webbrowser']['window_position']
 
@@ -310,6 +339,8 @@ class SlackActive:
                 data_dir: /home/<user>/.config/google-chrome/Default
                 # on Macs:
                 data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
+                # Hide or show (default) the webbrowser on screen:
+                hidden: false
                 # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
                 window_position: 5,10
                 # Window size in "width,height" pixels:
@@ -342,18 +373,22 @@ class SlackActive:
                 date_to: 2022-11-01
         """
         # Figure out this app's directory and add the name of the config-file to load:
-        _configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
-        self.log(f"Load config: {_configFile}")
+        self.configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
+        self.log(f"Load config: {self.configFile}")
         # Load the config file:
-        with open(_configFile, "r") as stream:
+        with open(self.configFile, "r") as stream:
             try:
                 _settings = yaml.safe_load(stream)
             except yaml.YAMLError as e:
                 print("Failed to read the config file!")
                 print(e)
                 sys.exit(1)
+        # Get the modification time of the config-file.
+        # We'll use this to detect file changes and dynamically reload the config when it changes.
+        self._configDate = os.path.getmtime(self.configFile)
 
         # Load the schema definition file so that we can validate the config-file:
+        # I could have used Pydantic for this but I wanted to do this with Cerberus.
         _configSchemaFile = f"{os.path.dirname(os.path.realpath(__file__))}/config.schema"
         self.log(f"Load schema definition: {_configSchemaFile}")
         with open(_configSchemaFile, 'r') as stream:
@@ -482,7 +517,7 @@ class SlackActive:
         #   Linux: ~/.config/google-chrome/default
         chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
 
-        if not self.debug:
+        if self.webbrowserHidden:
             # Run the web browser hidden in the background.
             # Set the option to hide it:
             chrome_options.add_argument("--headless")
@@ -498,7 +533,9 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-        _chrome_version = None
+# ToDo: WTF!!!  This works on Mac but not on Linux!!??  MacOS needs: 'None' and Linux needs: 'latest'????
+#        _chrome_version = None
+        _chrome_version = "latest"
         if not self.webbrowserVersion == "latest":
             _chrome_version = self.webbrowserVersion
         _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
@@ -663,10 +700,27 @@ class SlackActive:
             # Click the Slack textbox if we're in a working time window:
             if self._timeexclusion.checkNow():
                 self.clickTextbox()
+            # Check and see if the config-file got updated before we continue.
+            # We need to restart with the new config if it changed!
+            if self.configFileChanged():
+                # Breaking out of this loop will kick us back to the main application loop, which will restart the app:
+                break
             # Get a new number of seconds if we need random behavior:
             if self.clickRandom:
                 _seconds = randint(1, self.clickSeconds)
             time.sleep(_seconds)
+
+
+    def configFileChanged(self) -> bool:
+        """ Method to check if the config-file changed after starting the app.
+        
+        We want to auto-restart the app whenever the config-file got updated.
+        """
+        # Get the current modification time of the config-file and compare to what it was when we loaded the config:
+        _configDate = os.path.getmtime(self.configFile)
+        if _configDate != self.configDate:
+            self.log("The config-file changed.  We need to reload the app!")
+            return True
 
 # ----
 
