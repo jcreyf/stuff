@@ -454,6 +454,7 @@ class SlackActive:
         self.log(f"Slack workspace: {self.slackWorkspace}")
         self.log(f"Slack user: {self.slackUserName}")
         self.log("Web browser:")
+        self.log(f"  hidden: {self.webbrowserHidden}")
         self.log(f"  Chrome version to use: {self.webbrowserVersion}")
         self.log(f"  data directory: {self.webbrowserDataDir}")
         self.log(f"  window at pos: {self.webbrowserPosition}; width/height: {self.webbrowserSize} pixels (webpage size: {self.webpageSize})")
