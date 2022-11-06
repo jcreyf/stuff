@@ -10,6 +10,7 @@ I was planning on writing this in Go with BeautifulSoup but ended up writing it 
 is missing functionality that I need.  I could of course also have used Selenium in Go but it seemed quite a bit easier in Python.<br>
 
 Use config-file `slack_active.yaml` to control the app.<br>
+Note that the app auto-detects updates to the config-file and will auto-restart at the next click trigger, loading and using the new config.  
 Supported layout and properties in the file:<br>
 ```
 ---
