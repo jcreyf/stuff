@@ -1,3 +1,13 @@
+# ======================================================================================================== #
+# Class to generate daily start/stop triggers for whatever processes.                                      #
+# We can specify start/stop ranges of times for all days of the week and optionally specify a randomizer   #
+# to have the triggers happen on slightly different times each day.                                        #
+# We can also specify exclusion days (optionally yearly recurring) on which no triggers should be          #
+# generated (like on holidays).                                                                            #
+# ======================================================================================================== #
+#  2022-11-04  v1.0  jcreyf  Initial version                                                               #
+#  2022-11-06  v1.1  jcreyf  Make sure to generate the randomizer only once per day.                       #
+# ======================================================================================================== #
 import os
 import random
 from datetime import datetime, timedelta
@@ -8,7 +18,7 @@ class TimeExclusions:
     If there's no time window configured, then we assume that all days are 24/7 trigger days.
     """
 
-    __version__ = "v1.0 - 2022-11-03"
+    __version__ = "v1.1 - 2022-11-06"
 
     @staticmethod
     def version() -> str:
@@ -22,6 +32,10 @@ class TimeExclusions:
         self._debug = False                 # Debug logging level;
         self._times = {}                    # Dictionary with date/time windows;
         self._exclusions = {}               # Dictionary with date exclusion windows;
+        self._timeConfigName = "Default"    # Name of the 'times' config block to run;
+        self._currentDay = None             # Current week day ('Mo,Tu,...,Su');
+        self._startTime = None              # Start time for today + potential randomizer;
+        self._stopTime = None               # Stop time for today + potential randomizer;
 
 
     @property
@@ -183,18 +197,35 @@ class TimeExclusions:
             return False
         else:
             # We have a valid time window config to check.
-            # Convert the time strings to time objects:
+            # We may already have generated a start/stop time for today.
+            # If so, use those and avoid regenerating timestamps each time we run this code:
+            if self._currentDay == dayOfWeek and self._timeConfigName == timeWindow['name'] \
+                                             and self._startTime != None and self._stopTime != None:
+                # Not our first run today.  Use the cached timestamps:
+                _start = self._startTime
+                _stop = self._stopTime
+            else:
+                # This is the first time we're running this code today.  Determine start and stop times and store
+                # them to use for the rest of the day.
+                self.logDebug("First run of the day.  Generating start/stop times...")
+                # Get the start of day time and add a random number of minutes (can be 0 if we didn't specify
+                # a randomizer number in the config)
+                _start = datetime.strptime(timeWindow['start'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['start_random_minutes']))
+                _start = _start.time()
+                # Get the end of day time and add a random number of minutes (can be 0 if we didn't specify
+                # a randomizer number in the config)
+                _stop = datetime.strptime(timeWindow['stop'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['stop_random_minutes']))
+                _stop = _stop.time()
+                # Store the times in cache for the remainder of the day:
+                self._timeConfigName = timeWindow['name']
+                self._currentDay = dayOfWeek
+                self._startTime = _start
+                self._stopTime = _stop
+                self.log(f"First run of the day.  Generated times for the today (start: {_start} - stop: {_stop})")
+
+            # Determine where we are in today's trigger window:
             _time = timestamp.time()
-            # Get the start of day time and add a random number of minutes (can be 0 if we didn't specify
-            # a randomizer number in the config)
-            _start = datetime.strptime(timeWindow['start'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['start_random_minutes']))
-            _start = _start.time()
-            # Get the end of day time and add a random number of minutes (can be 0 if we didn't specify
-            # a randomizer number in the config)
-            _stop = datetime.strptime(timeWindow['stop'], '%H:%M') + timedelta(minutes=random.randint(0, timeWindow['stop_random_minutes']))
-            _stop = _stop.time()
             self.logDebug(f"Compare '{_time.strftime('%H:%M:%S')}' against '{_start}' and '{_stop}'")
-            # Now figure out where the time to check falls within the day:
             if _time < _start:
                 self.logDebug("time is before start time!")
                 return False
