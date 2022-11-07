@@ -534,9 +534,14 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
-# ToDo: WTF!!!  This works on Mac but not on Linux!!??  MacOS needs: 'None' and Linux needs: 'latest'????
-#        _chrome_version = None
-        _chrome_version = "latest"
+
+        # For some reason, the ChromeDriver download url is different for MacOS vs. Linux.
+        # Mac needs to have the version set to 'None' to pull the latest version, while it needs to be: 'latest' for Linux:
+        if sys.platform == "linux":
+            _chrome_version = "latest"
+        else:
+            _chrome_version = None
+
         if not self.webbrowserVersion == "latest":
             _chrome_version = self.webbrowserVersion
         _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
