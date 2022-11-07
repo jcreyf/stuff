@@ -40,7 +40,7 @@
 #  2022-11-04  v1.5  jcreyf  - auto-detect config file changes and auto-reload the app when this happens;  #
 #                            - add a 'hidden' flag to the webbrowser configuration.  The 'debug'-flag was  #
 #                              used to determine if we should show or hide the window but are moving that  #
-#                              to its own flag now;
+#                              to its own flag now;                                                        #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
