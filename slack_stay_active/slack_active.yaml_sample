@@ -61,9 +61,13 @@ config:
       stop_random_minutes: 30
       days: "Fr"
   exclusions:
+    # Configure days in the year on which you don't want the tool to show you online.
+    # These can be yearly recurring days, like holidays or one-off days, like vacation days.
+    # You can specify single days or a range of days.
     - name: "End Year"
       date_from: 2022-12-25
       date_to: 2023-01-02
+      # Optional flag to indicate yearly recurrance (default = non-recurring)
       yearly: true
     - name: "Birthday"
       date_from: 2022-08-23
@@ -72,3 +76,11 @@ config:
     - name: "PTO"
       date_from: 2022-11-01
       date_to: 2022-11-01
+  notifications:
+    # Configure ways to send application notifications (emails only for now but maybe SMS later?)
+    - email: "<email_address>"
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 465
+      # Run this to get the encrypted password:
+      #   /> ./slack_active.py --encrypt <password>
+      password: "<secret>"

@@ -177,6 +177,30 @@
                         }
                     }
                 }
+            },
+            'notifications': {
+                'required': False,
+                'type': 'dict',
+                'schema': {
+                    'email': {
+                        'required': True,
+                        'type': 'string',
+                        'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                   },
+                    'smtp_server': {
+                        'required': True,
+                        'type': 'string'
+                    },
+                    'smtp_port': {
+                        'required': True,
+                        'type': 'int'
+                        # 1 < x < 65536 ?
+                    },
+                    'password': {
+                        'required': True,
+                        'type': 'string'
+                    }
+                }
             }
         }
     }

@@ -77,6 +77,12 @@ config:
     - name: "PTO"
       date_from: 2022-11-01
       date_to: 2022-11-03
+  notifications:
+    # Configure ways to send application notifications.
+    - email: "<email_address>"
+      smtp_server: "<server>"
+      smtp_port: 465
+      password: "<secret>"
 ```
 
 The tool is using my own encryption module: https://github.com/jcreyf/secrets  

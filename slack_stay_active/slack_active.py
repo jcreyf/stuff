@@ -41,6 +41,7 @@
 #                            - add a 'hidden' flag to the webbrowser configuration.  The 'debug'-flag was  #
 #                              used to determine if we should show or hide the window but are moving that  #
 #                              to its own flag now;                                                        #
+#  2022-11-07  v1.6  jcreyf  Add sending email notifications.                                              #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -54,8 +55,8 @@ import selenium
 import yaml
 import signal
 import ast
-import pprint
-from time_exclusions import TimeExclusions
+import pprint           # Used to pretty-print the config;
+import smtplib, ssl     # Used for email notifications;
 
 from datetime import datetime
 from random import randint
@@ -71,6 +72,8 @@ from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 # Needed to validate and normalize the config-file:
 from cerberus import Validator
+# Needed to determine if we should trigger an event based on time-of-day and day-in-year:
+from time_exclusions import TimeExclusions
 
 # Load my own encryption class:
 # This needs:
@@ -103,7 +106,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.5 - 2022-11-04"
+    __version__ = "v1.6 - 2022-11-07"
 
     @staticmethod
     def version() -> str:
@@ -352,25 +355,30 @@ class SlackActive:
             times:
                 # Be active on these days:
                 - name: Regular Work Week
-                start: 08:45
-                start_random_minutes: 15
-                stop: 18:00
-                stop_random_minutes: 30
-                days: Mo,Tu,We,Th
+                  start: 08:45
+                  start_random_minutes: 15
+                  stop: 18:00
+                  stop_random_minutes: 30
+                  days: Mo,Tu,We,Th
                 - name: Summer Hours
-                start: 08:45
-                start_random_minutes: 15
-                stop: 13:00
-                stop_random_minutes: 30
-                days: Fr
+                  start: 08:45
+                  start_random_minutes: 15
+                  stop: 13:00
+                  stop_random_minutes: 30
+                  days: Fr
             exclusions:
                 - name: End Year
-                date_from: 2022-12-25
-                date_to: 2023-01-02
-                yearly: true
+                  date_from: 2022-12-25
+                  date_to: 2023-01-02
+                  yearly: true
                 - name: PTO
-                date_from: 2022-11-01
-                date_to: 2022-11-01
+                  date_from: 2022-11-01
+                  date_to: 2022-11-01
+            notifications:
+                - email: "<email_address>"
+                  smtp_server: "smtp.gmail.com"
+                  smtp_port: 465
+                  password: "<secret>"
         """
         # Figure out this app's directory and add the name of the config-file to load:
         self.configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
@@ -727,6 +735,16 @@ class SlackActive:
         if _configDate != self.configDate:
             self.log("The config-file changed.  We need to reload the app!")
             return True
+
+
+    def notify(self, msg: str):
+        """ Method to send a notification.
+        """
+        # Only continue if we have a notification mechanism configured:
+        if self._settings['config']['notifications']['email']:
+            with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+                server.login("my@gmail.com", password)
+                # TODO: Send email here
 
 # ----
 
