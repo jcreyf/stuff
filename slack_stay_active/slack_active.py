@@ -740,13 +740,35 @@ class SlackActive:
     def notify(self, msg: str):
         """ Method to send a notification.
         """
-        # Only continue if we have a notification mechanism configured:
-        if self._settings['config']['notifications']['email']:
-            with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
-                server.login("my@gmail.com", password)
-                # TODO: Send email here
+        # Only continue if we have a notification path configured:
+        if self._settings['config']['notifications'] != None:
+            context = ssl.create_default_context()
+            # Decrypt the credential:
+            cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+            _decryptedPassword = cipher.decrypt(self._settings['config']['notifications']['smtp_port'])
+            if _decryptedPassword == None or _decryptedPassword == "":
+                raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
+
+            self.log("Notify 4")
+            with smtplib.SMTP_SSL(self._settings['config']['notifications']['smtp_server'], \
+                                  self._settings['config']['notifications']['smtp_port'], \
+                                  context=context) as server:
+                self.log("Notify 5")
+                message = """\
+                    Subject: Slack Stay Active - Test
+
+                    Hallo!
+                    """
+                server.login(self._settings['config']['notifications']['email'], _decryptedPassword)
+                self.log("Notify 6")
+                server.sendmail("my-mac@email.com", "jo.creyf@gmail.com", message)
+                self.log("Notify 7")
+
+            del _decryptedPassword
+
 
 # ----
+
 
 slacker = None
 
@@ -823,6 +845,8 @@ if __name__ == "__main__":
                 slacker.log("Test time exclusions...")
                 flag = slacker._timeexclusion.checkTime(datetime.now())
                 slacker.log(f"timeCheck: {flag}")
+                # Test notifications:
+                slacker.notify("This is a test")
             else:
                 slacker.loadWebBrowser()
                 slacker.stayActive()
