@@ -4,6 +4,8 @@ config:
   enabled: true
   # Output feedback to the console:
   debug: false
+  # Name of the host this is running on (optional).  The application will pull it from the system if not set here:
+  hostname: "<name>"
   click:
     # randomize the number of seconds between clicks?
     random: true

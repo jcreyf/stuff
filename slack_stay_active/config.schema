@@ -20,6 +20,12 @@
                 'type': 'boolean',
                 'default': False
             },
+            'hostname': {
+                'required': False,
+                'type': 'string',
+                'default': ''
+                # the application should get the hostname from the system if it's not set here
+            },
             'click': {
                 'required': False,
                 'type': 'dict',

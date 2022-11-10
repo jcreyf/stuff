@@ -305,6 +305,11 @@ class SlackActive:
         self._settings['config']['webbrowser']['page_size'] = value
 
 
+    @property
+    def hostname(self) -> str:
+        return self._settings['config']['hostname']
+
+
     def log(self, msg: str):
         """ Method to log messages.
 
@@ -325,41 +330,27 @@ class SlackActive:
 
         We expect the file to be called 'slack_active.yaml' and sit in the same directory as the app.
         The file layout:
-
             ---
             config:
-            # Do not click the mouse if we disable functionality:
             enabled: true
-            # Output feedback to the console:
             debug: false
+            hostname: <name>
             click:
-                # Wait a random number of seconds between clicks:
                 random: True
                 seconds: 300
             slack:
-                org_url: https://app.slack.com/client/<workspace code>/<channel code>
+                org_url: <url>
                 workspace: <workspace name>
                 username: <userID>
                 password: <secret>
             webbrowser:
-                # Directory where the web browser can store session information so that you don't have to log on each time.
-                # See "Profile Path" when you navigate to "chrome://version" in your Chrome web browser:
-                # on Linux machines:
-                data_dir: /home/<user>/.config/google-chrome/Default
-                # on Macs:
-                data_dir: /Users/<user>/Library/Application Support/Google/Chrome/Default
-                # Hide or show (default) the webbrowser on screen:
+                data_dir: <directory>
                 hidden: false
-                # Window position in "x,y" pixel coordinates on screen ("1,1" = top left corner of main display):
                 window_position: 5,10
-                # Window size in "width,height" pixels:
                 window_size: 300,500
-                # Resize the web page (default: 100%):
                 page_size: 75%
-                # Either get the latest and greatest or set a specific version like: "102.0.5005.61"
                 chrome_version: "latest"
             times:
-                # Be active on these days:
                 - name: Regular Work Week
                   start: 08:45
                   start_random_minutes: 15
@@ -443,6 +434,10 @@ class SlackActive:
             else:
                 self.encryptionKey = cli_key
 
+        # Set the hostname if it isn't set in the config-file:
+        if self.hostname == '':
+            self._settings['config']['hostname'] = os.uname()[1]
+
         # Create an instance of the class that will check for each click if the current time falls within a
         # valid work window:
         self._timeexclusion = TimeExclusions()
@@ -459,6 +454,7 @@ class SlackActive:
         if self.debug:
             self.logDebug(f"Config:\n{pprint.pformat(self._settings)}")
 
+        self.log(f"Host: {self.hostname}")
         self.log(f"Debug: {self.debug}")
         self.log(f"Enabled: {self.enabled}")
         self.log(f"Click random: {self.clickRandom}")
@@ -775,21 +771,20 @@ class SlackActive:
         if _decryptedPassword == None or _decryptedPassword == "":
             raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
 
-        hostname = os.uname()[1]
         message = MIMEMultipart("alternative")
-        message["Subject"] = f'{config["email_subject"]} - {hostname}'
+        message["Subject"] = f'{config["email_subject"]} - {self.hostname}'
         message["From"] = config['email_from']
         message["To"] = config['email_to']
 
         _text = f"""\
         {msg}
-        Host: {hostname}
+        Host: {self.hostname}
         """
         _html = f"""\
         <html>
         <body>
             <p><b>{msg}</b></p><br>
-            Host: {hostname}
+            Host: {self.hostname}
         </body>
         </html>
         """
