@@ -775,18 +775,21 @@ class SlackActive:
         if _decryptedPassword == None or _decryptedPassword == "":
             raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
 
+        hostname = os.uname()[1]
         message = MIMEMultipart("alternative")
-        message["Subject"] = config["email_subject"]
+        message["Subject"] = f'{config["email_subject"]} - {hostname}'
         message["From"] = config['email_from']
         message["To"] = config['email_to']
 
         _text = f"""\
         {msg}
+        Host: {hostname}
         """
         _html = f"""\
         <html>
         <body>
-            <p><b>{msg}</b></p>
+            <p><b>{msg}</b></p><br>
+            Host: {hostname}
         </body>
         </html>
         """
