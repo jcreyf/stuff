@@ -74,6 +74,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from cerberus import Validator
 # Needed to determine if we should trigger an event based on time-of-day and day-in-year:
 from time_exclusions import TimeExclusions
+# Needed for email notifications:
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Load my own encryption class:
 # This needs:
@@ -138,6 +141,9 @@ class SlackActive:
                 self._webbrowser = None
             except:
                 pass
+
+        # Send a notification that the app is no longer running:
+        self.notify("The application stopped running!")
 
 
     @property
@@ -375,7 +381,9 @@ class SlackActive:
                   date_from: 2022-11-01
                   date_to: 2022-11-01
             notifications:
-                - email: "<email_address>"
+                - email_from: "<email_address>"
+                  email_to: "<email_address>"
+                  email_subject: "<subject line>"
                   smtp_server: "smtp.gmail.com"
                   smtp_port: 465
                   password: "<secret>"
@@ -714,6 +722,10 @@ class SlackActive:
             # Click the Slack textbox if we're in a working time window:
             if self._timeexclusion.checkNow():
                 self.clickTextbox()
+            # Send a notification if this is the first check of the day.
+            # The user can use that notification as sign the app is still running.
+            if self._timeexclusion.isNewDay:
+                self.notify(self._timeexclusion.dayMessage)
             # Check and see if the config-file got updated before we continue.
             # We need to restart with the new config if it changed!
             if self.configFileChanged():
@@ -738,33 +750,59 @@ class SlackActive:
 
 
     def notify(self, msg: str):
-        """ Method to send a notification.
+        """ Method to send notifications.
         """
-        # Only continue if we have a notification path configured:
+        # Only continue if we have notification mechanisms configured:
         if self._settings['config']['notifications'] != None:
-            context = ssl.create_default_context()
-            # Decrypt the credential:
-            cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
-            _decryptedPassword = cipher.decrypt(self._settings['config']['notifications']['smtp_port'])
-            if _decryptedPassword == None or _decryptedPassword == "":
-                raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
+            # We have configuration(s).  Loop through them and see if we have one for email:
+            for notification_method in self._settings['config']['notifications']:
+                if "email_to" in notification_method.keys():
+                    self.sendEmail(notification_method, msg)
 
-            self.log("Notify 4")
-            with smtplib.SMTP_SSL(self._settings['config']['notifications']['smtp_server'], \
-                                  self._settings['config']['notifications']['smtp_port'], \
-                                  context=context) as server:
-                self.log("Notify 5")
-                message = """\
-                    Subject: Slack Stay Active - Test
 
-                    Hallo!
-                    """
-                server.login(self._settings['config']['notifications']['email'], _decryptedPassword)
-                self.log("Notify 6")
-                server.sendmail("my-mac@email.com", "jo.creyf@gmail.com", message)
-                self.log("Notify 7")
+    def sendEmail(self, config: dict, msg: str):
+        """ Method to send emails.
+        
+        This method is specifically setup to send email through Google Mail.
+        Make sure to have an "Application Password" generated for this app.  See:
+          https://support.google.com/accounts/answer/185833?visit_id=638036529563689035-1605844469&p=InvalidSecondFactor&rd=1
+        """
+        self.log("Sending notification email...")
+        context = ssl.create_default_context()
+        # Decrypt the credential:
+        cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+        _decryptedPassword = cipher.decrypt(config['password'])
+        if _decryptedPassword == None or _decryptedPassword == "":
+            raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
 
-            del _decryptedPassword
+        message = MIMEMultipart("alternative")
+        message["Subject"] = config["email_subject"]
+        message["From"] = config['email_from']
+        message["To"] = config['email_to']
+
+        _text = f"""\
+        {msg}
+        """
+        _html = f"""\
+        <html>
+        <body>
+            <p><b>{msg}</b></p>
+        </body>
+        </html>
+        """
+
+        # Add HTML/plain-text parts to MIMEMultipart message.
+        # The email client will try to render the last part first.
+        message.attach(MIMEText(_text, "plain"))
+        message.attach(MIMEText(_html, "html"))
+
+        with smtplib.SMTP_SSL(config['smtp_server'], config['smtp_port'], context=context) as emailServer:
+            emailServer.login(config['email_from'], _decryptedPassword)
+            emailServer.sendmail(from_addr=config['email_from'], \
+                                 to_addrs=config['email_to'], \
+                                 msg=message.as_string())
+
+        del _decryptedPassword
 
 
 # ----
@@ -854,7 +892,7 @@ if __name__ == "__main__":
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")
         except Exception as ex:
-            slacker.log(f"Exception! -> {ex}")
+            slacker.log(f"Exception! -> {type(ex)}: {ex}")
             # Slack did not just kick us out after a while. Do not restart the loop.
             # It may be that decryption of the credential failed.
             # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!

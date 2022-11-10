@@ -184,10 +184,20 @@
                 'schema': {
                     'type': 'dict',
                     'schema': {
-                        'email': {
+                        'email_from': {
                             'required': True,
                             'type': 'string',
                             'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                        },
+                        'email_to': {
+                            'required': True,
+                            'type': 'string',
+                            'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                        },
+                        'email_subject': {
+                            'required': False,
+                            'type': 'string',
+                            'default': 'Slack Stay Active'
                         },
                         'smtp_server': {
                             'required': True,

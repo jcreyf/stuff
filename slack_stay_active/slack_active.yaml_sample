@@ -78,9 +78,13 @@ config:
       date_to: 2022-11-01
   notifications:
     # Configure ways to send application notifications (emails only for now but maybe SMS later?)
-    - email: "<email_address>"
+    - email_from: "<email_address>"
+      email_to: "<email_address>"
+      email_subject: "<Set your own subject line>"
       smtp_server: "smtp.gmail.com"
       smtp_port: 465
+      # Get an application token:
+      #   https://support.google.com/accounts/answer/185833?visit_id=638036529563689035-1605844469&p=InvalidSecondFactor&rd=1
       # Run this to get the encrypted password:
       #   /> ./slack_active.py --encrypt <password>
       password: "<secret>"

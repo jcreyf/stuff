@@ -7,6 +7,8 @@
 # ======================================================================================================== #
 #  2022-11-04  v1.0  jcreyf  Initial version                                                               #
 #  2022-11-06  v1.1  jcreyf  Make sure to generate the randomizer only once per day.                       #
+#  2022-11-09  v1.2  jcreyf  Add a property that the caller can check to see if the run is the first of a  #
+#                            new day.                                                                      #
 # ======================================================================================================== #
 import os
 import random
@@ -18,7 +20,7 @@ class TimeExclusions:
     If there's no time window configured, then we assume that all days are 24/7 trigger days.
     """
 
-    __version__ = "v1.1 - 2022-11-06"
+    __version__ = "v1.2 - 2022-11-09"
 
     @staticmethod
     def version() -> str:
@@ -36,6 +38,8 @@ class TimeExclusions:
         self._currentDay = None             # Current week day ('Mo,Tu,...,Su');
         self._startTime = None              # Start time for today + potential randomizer;
         self._stopTime = None               # Stop time for today + potential randomizer;
+        self._isNewDay = False              # Is this the first run of the day?
+        self._dayMessage = ""               # Text generated when a new day started with start and stop times;
 
 
     @property
@@ -63,6 +67,16 @@ class TimeExclusions:
     @exclusions.setter
     def exclusions(self, exclusions: dict):
         self._exclusions = exclusions
+
+
+    @property
+    def isNewDay(self) -> bool:
+        return self._isNewDay
+
+
+    @property
+    def dayMessage(self) -> str:
+        return self._dayMessage
 
 
     def log(self, msg: str):
@@ -202,11 +216,13 @@ class TimeExclusions:
             if self._currentDay == dayOfWeek and self._timeConfigName == timeWindow['name'] \
                                              and self._startTime != None and self._stopTime != None:
                 # Not our first run today.  Use the cached timestamps:
+                self._isNewDay = False
                 _start = self._startTime
                 _stop = self._stopTime
             else:
                 # This is the first time we're running this code today.  Determine start and stop times and store
                 # them to use for the rest of the day.
+                self._isNewDay = True
                 self.logDebug("First run of the day.  Generating start/stop times...")
                 # Get the start of day time and add a random number of minutes (can be 0 if we didn't specify
                 # a randomizer number in the config)
@@ -221,7 +237,8 @@ class TimeExclusions:
                 self._currentDay = dayOfWeek
                 self._startTime = _start
                 self._stopTime = _stop
-                self.log(f"First run of the day.  Generated times for the today (start: {_start} - stop: {_stop})")
+                self._dayMessage = f"First run of the day.  Generated times for the today (start: {_start} - stop: {_stop})"
+                self.log(self._dayMessage)
 
             # Determine where we are in today's trigger window:
             _time = timestamp.time()
