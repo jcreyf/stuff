@@ -12,7 +12,7 @@
 # Going with Selenium because we need more than just web scraping.  We need to provide user input as if    #
 # the user is interacting with the web pages!                                                              #
 #                                                                                                          #
-# Install the Selenium and Webdriver Manager packages:                                                     #
+# Install the Selenium and Webdriver Manager packages (see requirements.txt):                              #
 # (make sure to have Selenium v4 or greater installed!)                                                    #
 #   pip install selenium webdriver-manager cerberus pyyaml pycryptodome                                    #
 # or                                                                                                       #
