@@ -20,6 +20,12 @@
                 'type': 'boolean',
                 'default': False
             },
+            'hostname': {
+                'required': False,
+                'type': 'string',
+                'default': ''
+                # the application should get the hostname from the system if it's not set here
+            },
             'click': {
                 'required': False,
                 'type': 'dict',
@@ -174,6 +180,43 @@
                             'required': False,
                             'type': 'boolean',
                             'default': False
+                        }
+                    }
+                }
+            },
+            'notifications': {
+                'required': False,
+                'type': 'list',
+                'schema': {
+                    'type': 'dict',
+                    'schema': {
+                        'email_from': {
+                            'required': True,
+                            'type': 'string',
+                            'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                        },
+                        'email_to': {
+                            'required': True,
+                            'type': 'string',
+                            'regex': "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+                        },
+                        'email_subject': {
+                            'required': False,
+                            'type': 'string',
+                            'default': 'Slack Stay Active'
+                        },
+                        'smtp_server': {
+                            'required': True,
+                            'type': 'string'
+                        },
+                        'smtp_port': {
+                            'required': True,
+                            'type': 'integer'
+                            # 1 < x < 65536 ?
+                        },
+                        'password': {
+                            'required': True,
+                            'type': 'string'
                         }
                     }
                 }
