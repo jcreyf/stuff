@@ -190,6 +190,11 @@
                 'schema': {
                     'type': 'dict',
                     'schema': {
+                        'enabled': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
                         'email_from': {
                             'required': True,
                             'type': 'string',
@@ -206,12 +211,14 @@
                             'default': 'Slack Stay Active'
                         },
                         'smtp_server': {
-                            'required': True,
-                            'type': 'string'
+                            'required': False,
+                            'type': 'string',
+                            'default': 'smtp.gmail.com'
                         },
                         'smtp_port': {
-                            'required': True,
-                            'type': 'integer'
+                            'required': False,
+                            'type': 'integer',
+                            'default': 465
                             # 1 < x < 65536 ?
                         },
                         'password': {
