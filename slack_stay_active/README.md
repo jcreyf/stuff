@@ -78,8 +78,10 @@ config:
       date_from: 2022-11-01
       date_to: 2022-11-03
   notifications:
-    # Configure ways to send application notifications.
-    - email: "<email_address>"
+    # Configure ways to send application notifications (email only at this point):
+    - enabled: true
+      email_to: "<email_address>"
+      email_from: "<email_address>"
       smtp_server: "<server>"
       smtp_port: 465
       password: "<secret>"
@@ -238,3 +240,16 @@ Now you can copy/paste this encrypted password into your `slack_active.yaml` fil
     password: "SWVXc3l2azh5aDVzVFJVMlVoeVlrRU56Zng4d3FZUWw3bzFpQXU3dEhDVT0="
 ```
 
+### Sending notifications:
+The tool can send flat text and more fancy HTML emails.  
+Most phone providers will let you send an SMS by sending a simple email to a specific email address that has the target phone number:
+-   AT&T: `[number]@txt.att.net`
+-   Sprint: `[number]@messaging.sprintpcs.com` or `[number]@pm.sprint.com`
+-   T-Mobile: `[number]@tmomail.net`
+-   Verizon: `[number]@vtext.com`
+-   Boost Mobile: `[number]@myboostmobile.com`
+-   Cricket: `[number]@sms.mycricket.com`
+-   Metro PCS: `[number]@mymetropcs.com`
+-   Tracfone: `[number]@mmst5.tracfone.com`
+-   U.S. Cellular: `[number]@email.uscc.net`
+-   Virgin Mobile: `[number]@vmobl.com`

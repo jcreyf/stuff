@@ -79,8 +79,20 @@ config:
       date_from: 2022-11-01
       date_to: 2022-11-01
   notifications:
-    # Configure ways to send application notifications (emails only for now but maybe SMS later?)
-    - email_from: "<email_address>"
+    # Configure ways to send application notifications.
+    # Most phone providers will let you send an SMS by sending a simple email to a specific email address:
+    #   AT&T: [number]@txt.att.net
+    #   Sprint: [number]@messaging.sprintpcs.com or [number]@pm.sprint.com
+    #   T-Mobile: [number]@tmomail.net
+    #   Verizon: [number]@vtext.com
+    #   Boost Mobile: [number]@myboostmobile.com
+    #   Cricket: [number]@sms.mycricket.com
+    #   Metro PCS: [number]@mymetropcs.com
+    #   Tracfone: [number]@mmst5.tracfone.com
+    #   U.S. Cellular: [number]@email.uscc.net
+    #   Virgin Mobile: [number]@vmobl.com
+    - enabled: True (default)
+      email_from: "<email_address>"
       email_to: "<email_address>"
       email_subject: "<Set your own subject line>"
       smtp_server: "smtp.gmail.com"

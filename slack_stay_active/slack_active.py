@@ -372,7 +372,8 @@ class SlackActive:
                   date_from: 2022-11-01
                   date_to: 2022-11-01
             notifications:
-                - email_from: "<email_address>"
+                - enabled: true
+                  email_from: "<email_address>"
                   email_to: "<email_address>"
                   email_subject: "<subject line>"
                   smtp_server: "smtp.gmail.com"
@@ -752,8 +753,9 @@ class SlackActive:
         if self._settings['config']['notifications'] != None:
             # We have configuration(s).  Loop through them and see if we have one for email:
             for notification_method in self._settings['config']['notifications']:
-                if "email_to" in notification_method.keys():
-                    self.sendEmail(notification_method, msg)
+                if notification_method['enabled']:
+                    if "email_to" in notification_method.keys():
+                        self.sendEmail(notification_method, msg)
 
 
     def sendEmail(self, config: dict, msg: str):
@@ -780,11 +782,13 @@ class SlackActive:
         {msg}
         Host: {self.hostname}
         """
+
+        msg = msg.replace("\n", "<br>")
         _html = f"""\
         <html>
         <body>
-            <p><b>{msg}</b></p><br>
-            Host: {self.hostname}
+            <p><b>{msg}</b><br>
+            Host: {self.hostname}</p>
         </body>
         </html>
         """
@@ -889,8 +893,10 @@ if __name__ == "__main__":
         except SlackTimeout as ex:
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")
+            slacker.notify(f"Slack kicked us out!\n-> {type(ex)}: {ex}\nAuto-restarting the tool now...")
         except Exception as ex:
             slacker.log(f"Exception! -> {type(ex)}: {ex}")
+            slacker.notify(f"The app ran into a non-recoverable exception!\n-> {type(ex)}: {ex}\nI can't auto-restart!  YOU NEED TO LOOK INTO THIS AND MANUALLY RESTART THE TOOL!!!")
             # Slack did not just kick us out after a while. Do not restart the loop.
             # It may be that decryption of the credential failed.
             # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!
