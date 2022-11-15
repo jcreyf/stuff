@@ -101,6 +101,18 @@ class SecurityException(Exception):
     pass
 
 
+class NotificationTypes:
+    """
+    Class to hold a list of supported notification types.
+    """
+    APP_START = 'send_app_start'
+    APP_END = 'send_app_end'
+    APP_RESTART = 'send_app_restart'
+    FIRST_RUN_OF_DAY = 'send_app_first_run_of_day'
+    SET_ONLINE = 'send_app_set_online'
+    SET_OFFLINE = 'send_app_set_offline'
+
+
 class SlackActive:
     """
     Class to load the Slack web page and click on the message textbox as if the user is ready to start typing.
@@ -146,7 +158,7 @@ class SlackActive:
 
         # Send a notification that the app is no longer running (not when in test mode):
         if not self.testMode:
-            self.notify(msg="The application stopped running!", msg_type='send_app_end')
+            self.notify(msg="The application stopped running!", msg_type=NotificationTypes.APP_END)
 
 
     @property
@@ -739,18 +751,18 @@ class SlackActive:
                 self.clickTextbox()
                 # Send a notification if state of online vs. offline changes:
                 if not self._clickPreviousCheck:
-                    self.notify(msg='Setting you online now', msg_type='send_app_set_online')
+                    self.notify(msg='Setting you online now', msg_type=NotificationTypes.SET_ONLINE)
                 self._clickPreviousCheck = True
             else:
                 # Send a notification if state of online vs. offline changes:
                 if self._clickPreviousCheck:
-                    self.notify(msg='Setting you offline now', msg_type='send_app_set_offline')
+                    self.notify(msg='Setting you offline now', msg_type=NotificationTypes.SET_OFFLINE)
                 self._clickPreviousCheck = False
 
             # Send a notification if this is the first check of the day.
             # The user can use that notification as sign the app is still running.
             if self._timeexclusion.isNewDay:
-                self.notify(msg=self._timeexclusion.dayMessage, msg_type='send_app_first_run_of_day')
+                self.notify(msg=self._timeexclusion.dayMessage, msg_type=NotificationTypes.FIRST_RUN_OF_DAY)
             # Check and see if the config-file got updated before we continue.
             # We need to restart with the new config if it changed!
             if self.configFileChanged():
@@ -778,7 +790,7 @@ class SlackActive:
         """ Method to send notifications.
 
         Individual message types can be disabled in the config.
-        Supported message types:
+        Supported message types (defined in class: NotificationTypes):
             '' (default) -> generic message
             'send_app_start'
             'send_app_end'
