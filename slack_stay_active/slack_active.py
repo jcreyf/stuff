@@ -123,6 +123,8 @@ class SlackActive:
         self._configDate = None             # Modification date of the config-file;
         self._settings = {}                 # Dictionary with our settings loaded from the config-file;
         self._timeexclusion = None          # Object that decides if the current time is a valid trigger time;
+        self._testMode = False              # Is the app running in test mode?
+        self._clickPreviousCheck = False    # Did we click during previous time check?
 
 
     def __del__(self):
@@ -142,8 +144,9 @@ class SlackActive:
             except:
                 pass
 
-        # Send a notification that the app is no longer running:
-        self.notify("The application stopped running!")
+        # Send a notification that the app is no longer running (not when in test mode):
+        if not self.testMode:
+            self.notify(msg="The application stopped running!", msg_type='send_app_end')
 
 
     @property
@@ -176,6 +179,15 @@ class SlackActive:
     @enabled.setter
     def enabled(self, flag: bool):
         self._settings['config']['enabled'] = flag
+
+
+    @property
+    def testMode(self) -> bool:
+        return self._testMode
+
+    testMode.setter
+    def testMode(self, flag: bool):
+        self._testMode = flag
 
 
     @property
@@ -379,6 +391,12 @@ class SlackActive:
                   smtp_server: "smtp.gmail.com"
                   smtp_port: 465
                   password: "<secret>"
+                  send_app_start: true
+                  send_app_end: true
+                  send_app_restart: true
+                  send_app_first_run_of_day: true
+                  send_app_set_online: true
+                  send_app_set_offline: true
         """
         # Figure out this app's directory and add the name of the config-file to load:
         self.configFile = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.yaml"
@@ -719,10 +737,20 @@ class SlackActive:
             # Click the Slack textbox if we're in a working time window:
             if self._timeexclusion.checkNow():
                 self.clickTextbox()
+                # Send a notification if state of online vs. offline changes:
+                if not self._clickPreviousCheck:
+                    self.notify(msg='Setting you online now', msg_type='send_app_set_online')
+                self._clickPreviousCheck = True
+            else:
+                # Send a notification if state of online vs. offline changes:
+                if self._clickPreviousCheck:
+                    self.notify(msg='Setting you offline now', msg_type='send_app_set_offline')
+                self._clickPreviousCheck = False
+
             # Send a notification if this is the first check of the day.
             # The user can use that notification as sign the app is still running.
             if self._timeexclusion.isNewDay:
-                self.notify(self._timeexclusion.dayMessage)
+                self.notify(msg=self._timeexclusion.dayMessage, msg_type='send_app_first_run_of_day')
             # Check and see if the config-file got updated before we continue.
             # We need to restart with the new config if it changed!
             if self.configFileChanged():
@@ -746,14 +774,30 @@ class SlackActive:
             return True
 
 
-    def notify(self, msg: str):
+    def notify(self, msg: str, msg_type: str = ''):
         """ Method to send notifications.
+
+        Individual message types can be disabled in the config.
+        Supported message types:
+            '' (default) -> generic message
+            'send_app_start'
+            'send_app_end'
+            'send_app_restart'
+            'send_app_first_run_of_day'
+            'send_app_set_online'
+            'send_app_set_offline'
         """
         # Only continue if we have notification mechanisms configured:
         if self._settings['config']['notifications'] != None:
             # We have configuration(s).  Loop through them and see if we have one for email:
             for notification_method in self._settings['config']['notifications']:
-                if notification_method['enabled']:
+                # Individual message types can be enabled/disabled.  Determine that flag here:
+                if msg_type == '':
+                    type_enabled = True
+                else:
+                    type_enabled = notification_method[msg_type]
+                # Send a notification if enabled:
+                if notification_method['enabled'] and type_enabled:
                     if "email_to" in notification_method.keys():
                         self.sendEmail(notification_method, msg)
 
@@ -814,7 +858,7 @@ slacker = None
 
 def signal_handler(signum, frame):
     """ Handle CRTL+C and other kill events """
-    slacker.log("End of app...")
+    slacker.log(msg="End of app...", msg_type='send_app_end')
     # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
     # The finally block will still execute even if we CTRL-C out of the app.
 #    slacker.end()
@@ -867,6 +911,7 @@ if __name__ == "__main__":
             slacker = SlackActive()
             slacker.log("==================")
             slacker.log(slacker.version())
+            slacker.testMode = TEST
             slacker.loadConfig()
             # See if we need to execute something from the command line arguments:
             if encrypt:
@@ -877,7 +922,7 @@ if __name__ == "__main__":
                 exit(0)
             # No 'one of' task to execute.  Load the web browser and do the thing this app was built for:
             # (if we're not in TEST mode)
-            if TEST:
+            if slacker.testMode:
                 # TEST mode goes through all steps of the app up to the opening of the webbrowser.
                 # So don't do that here and exit out of the loop:
                 _loop = False
@@ -886,6 +931,7 @@ if __name__ == "__main__":
                 flag = slacker._timeexclusion.checkTime(datetime.now())
                 slacker.log(f"timeCheck: {flag}")
                 # Test notifications:
+                slacker.log("Sending a test notification...")
                 slacker.notify("This is a test")
             else:
                 slacker.loadWebBrowser()
@@ -893,10 +939,10 @@ if __name__ == "__main__":
         except SlackTimeout as ex:
             slacker.log(f"Slack kicked us out! -> {ex}")
             slacker.log("restarting...")
-            slacker.notify(f"Slack kicked us out!\n-> {type(ex)}: {ex}\nAuto-restarting the tool now...")
+            slacker.notify(msg=f"Slack kicked us out!\n-> {type(ex)}: {ex}\nAuto-restarting the tool now...", msg_type='send_app_restart')
         except Exception as ex:
             slacker.log(f"Exception! -> {type(ex)}: {ex}")
-            slacker.notify(f"The app ran into a non-recoverable exception!\n-> {type(ex)}: {ex}\nI can't auto-restart!  YOU NEED TO LOOK INTO THIS AND MANUALLY RESTART THE TOOL!!!")
+            slacker.notify(msg=f"The app ran into a non-recoverable exception!\n-> {type(ex)}: {ex}\nI can't auto-restart!  YOU NEED TO LOOK INTO THIS AND MANUALLY RESTART THE TOOL!!!")
             # Slack did not just kick us out after a while. Do not restart the loop.
             # It may be that decryption of the credential failed.
             # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!

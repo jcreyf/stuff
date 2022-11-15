@@ -224,6 +224,36 @@
                         'password': {
                             'required': True,
                             'type': 'string'
+                        },
+                        'send_app_start': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
+                        'send_app_end': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
+                        'send_app_restart': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
+                        'send_app_first_run_of_day': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
+                        'send_app_set_online': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
+                        },
+                        'send_app_set_offline': {
+                            'required': False,
+                            'type': 'boolean',
+                            'default': True
                         }
                     }
                 }
