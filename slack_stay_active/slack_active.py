@@ -41,7 +41,8 @@
 #                            - add a 'hidden' flag to the webbrowser configuration.  The 'debug'-flag was  #
 #                              used to determine if we should show or hide the window but are moving that  #
 #                              to its own flag now;                                                        #
-#  2022-11-07  v1.6  jcreyf  Add sending email notifications.                                              #
+#  2022-11-16  v1.6  jcreyf  - add sending email notifications (sms through text gateways);                #
+#                            - save the process ID in a file for easier support from the command line;     #
 # ======================================================================================================== #
 # ToDo:
 #   - add system notifications in case there are issues since this app may run in the background:
@@ -121,7 +122,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.6 - 2022-11-07"
+    __version__ = "v1.6 - 2022-11-16"
 
     @staticmethod
     def version() -> str:
@@ -159,6 +160,12 @@ class SlackActive:
         # Send a notification that the app is no longer running (not when in test mode):
         if not self.testMode:
             self.notify(msg="The application stopped running!", msg_type=NotificationTypes.APP_END)
+
+        # Try to delete the PID-file (ignore potential issues):
+        try:
+            os.remove(f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.pid")
+        except:
+            pass
 
 
     @property
@@ -347,6 +354,22 @@ class SlackActive:
     def logDebug(self, msg: str):
         if self.debug:
             self.log(f"DEBUG: {msg}")
+
+
+    def saveProcessID(self):
+        """ Method to save the PID of this process to a file.
+        
+        It's sometimes handy to have the process ID for command-line operation.
+        We could of course get the PID through the ps-command but why no save it to be sure!?
+        """
+        try:
+            pid_file_path = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.pid"
+            pid = os.getpid()
+            with open(pid_file_path, 'w') as pid_file:
+                self.log(f"PID: {pid} -> {pid_file_path}")
+                pid_file.write(f"{pid}\n")
+        except:
+            pass
 
 
     def loadConfig(self):
@@ -560,6 +583,10 @@ class SlackActive:
         #   Mac:   ~/Library/Application Support/Google/Chrome/Default
         #   Linux: ~/.config/google-chrome/default
         chrome_options.add_argument(f"user-data-dir='{self.webbrowserDataDir}'")
+        # Hide the info bar at the top of the window that says:
+        #   "Chrome is being controlled by automated test software"
+        # (this flag will or may get removed at some point)
+        chrome_options.add_argument("--disable-infobars")
 
         if self.webbrowserHidden:
             # Run the web browser hidden in the background.
@@ -923,6 +950,7 @@ if __name__ == "__main__":
             slacker = SlackActive()
             slacker.log("==================")
             slacker.log(slacker.version())
+            slacker.saveProcessID()
             slacker.testMode = TEST
             slacker.loadConfig()
             # See if we need to execute something from the command line arguments:
