@@ -9,3 +9,5 @@ start.sh
 **/temp
 # Ignore typical Python stuff:
 **/__pycache__
+# Ignore process ID files:
+*.pid
