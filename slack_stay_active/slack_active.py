@@ -898,6 +898,7 @@ class SlackActive:
             message["To"] = config['email_to']
 
             _text = f"""\
+            {datetime.now().strftime('%m/%d %H:%M:%S')}
             {msg}
             Host: {self.hostname}
             """
@@ -906,7 +907,7 @@ class SlackActive:
             _html = f"""\
             <html>
             <body>
-                <p><b>{msg}</b><br>
+                <p>{datetime.now().strftime('%m/%d %H:%M:%S')}<br><b>{msg}</b><br>
                 Host: {self.hostname}</p>
             </body>
             </html>
