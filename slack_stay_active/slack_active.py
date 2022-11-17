@@ -43,6 +43,7 @@
 #                              to its own flag now;                                                        #
 #  2022-11-16  v1.6  jcreyf  - add sending email notifications (sms through text gateways);                #
 #                            - save the process ID in a file for easier support from the command line;     #
+#  2022-11-17  v1.7  jcreyf  - get the app working on Raspberry Pi;                                        #
 # ======================================================================================================== #
 # ToDo:
 #   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
