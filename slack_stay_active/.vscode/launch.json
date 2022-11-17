@@ -11,7 +11,10 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "args" : ["--test"],
+            "args": ["--test"],
+            "env": {
+                "JC_SECRETS_KEY": "secret"
+            },
             "console": "integratedTerminal",
             "justMyCode": true
         }
