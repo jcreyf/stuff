@@ -622,7 +622,7 @@ class SlackActive:
         # Simple detection mechanism to see if we're running this on a Pi:
         # (we could also parse the data out of "os.uname()")
         if os.name == 'posix':
-            sys.log("Running on a Raspberry PI...")
+            self.log("Running on a Raspberry PI...")
         else:
             # Run this on non-RPi devices:
             _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
