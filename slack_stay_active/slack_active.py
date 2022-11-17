@@ -727,6 +727,12 @@ class SlackActive:
             #             webpage got loaded instead of the 2FA page.
             self.logDebug("  Okta verify...")
             try:
+                self.logDebug("----------------------------------------")
+                self.logDebug("Okta verify page:")
+                self.logDebug("========================================")
+                self.logDebug(self._webbrowser.page_source)
+                self.logDebug("========================================")
+
                 # We're now at the "Okta Verify" page (most of the time):
                 #   <label for="input82" data-se-for-name="autoPush" class>Send push automatically</label>
                 #
@@ -739,6 +745,12 @@ class SlackActive:
                 if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
                     self.logDebug("  -> Okta 2FA skipped!")
                 else:
+                    self.logDebug("----------------------------------------")
+                    self.logDebug("Okta verify timeout:")
+                    self.logDebug("========================================")
+                    self.logDebug(self._webbrowser.page_source)
+                    self.logDebug("========================================")
+
                     # Nope, we're not on the final webpage yet.  Raise the TimeOut exception:
                     self.logDebug("TimeOut on the Okta verification step!")
                     raise te
