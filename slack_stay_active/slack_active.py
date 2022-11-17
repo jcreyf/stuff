@@ -741,6 +741,7 @@ class SlackActive:
                 # No timeout, so we got the 2FA page.  Click the damn thing!
                 okta_verify.click()
             except TimeoutException as te:
+                self.logDebug("Okta verify timed out")
                 # We're not getting the 2FA page.  Lets see if we got the final page that has the testing input box:
                 if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
                     self.logDebug("  -> Okta 2FA skipped!")
