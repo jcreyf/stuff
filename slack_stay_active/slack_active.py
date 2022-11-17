@@ -849,45 +849,50 @@ class SlackActive:
           https://support.google.com/accounts/answer/185833?visit_id=638036529563689035-1605844469&p=InvalidSecondFactor&rd=1
         """
         self.log("Sending notification email...")
-        context = ssl.create_default_context()
-        # Decrypt the credential:
-        cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
-        _decryptedPassword = cipher.decrypt(config['password'])
-        if _decryptedPassword == None or _decryptedPassword == "":
-            raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
+        try:
+            context = ssl.create_default_context()
+            # Decrypt the credential:
+            cipher = AES_256_CBC(key=self.encryptionKey, verbose=self.debug)
+            _decryptedPassword = cipher.decrypt(config['password'])
+            if _decryptedPassword == None or _decryptedPassword == "":
+                raise SecurityException("Failed to decrypt the email password!  Is the key set correctly (JC_SECRETS_KEY)?")
 
-        message = MIMEMultipart("alternative")
-        message["Subject"] = f'{config["email_subject"]} - {self.hostname}'
-        message["From"] = config['email_from']
-        message["To"] = config['email_to']
+            message = MIMEMultipart("alternative")
+            message["Subject"] = f'{config["email_subject"]} - {self.hostname}'
+            message["From"] = config['email_from']
+            message["To"] = config['email_to']
 
-        _text = f"""\
-        {msg}
-        Host: {self.hostname}
-        """
+            _text = f"""\
+            {msg}
+            Host: {self.hostname}
+            """
 
-        msg = msg.replace("\n", "<br>")
-        _html = f"""\
-        <html>
-        <body>
-            <p><b>{msg}</b><br>
-            Host: {self.hostname}</p>
-        </body>
-        </html>
-        """
+            msg = msg.replace("\n", "<br>")
+            _html = f"""\
+            <html>
+            <body>
+                <p><b>{msg}</b><br>
+                Host: {self.hostname}</p>
+            </body>
+            </html>
+            """
 
-        # Add HTML/plain-text parts to MIMEMultipart message.
-        # The email client will try to render the last part first.
-        message.attach(MIMEText(_text, "plain"))
-        message.attach(MIMEText(_html, "html"))
+            # Add HTML/plain-text parts to MIMEMultipart message.
+            # The email client will try to render the last part first.
+            message.attach(MIMEText(_text, "plain"))
+            message.attach(MIMEText(_html, "html"))
 
-        with smtplib.SMTP_SSL(config['smtp_server'], config['smtp_port'], context=context) as emailServer:
-            emailServer.login(config['email_from'], _decryptedPassword)
-            emailServer.sendmail(from_addr=config['email_from'], \
-                                 to_addrs=config['email_to'], \
-                                 msg=message.as_string())
-
-        del _decryptedPassword
+            with smtplib.SMTP_SSL(config['smtp_server'], config['smtp_port'], context=context) as emailServer:
+                emailServer.login(config['email_from'], _decryptedPassword)
+                emailServer.sendmail(from_addr=config['email_from'], \
+                                    to_addrs=config['email_to'], \
+                                    msg=message.as_string())
+        except Exception as e:
+            # Not being able to send a notification is not critical!  Just log the issue:
+            self.log(f"Failed to send notification:\n{msg}")
+            self.log(f"The exception -> {str(ex)}")
+        finally:
+            del _decryptedPassword
 
 
 # ----
