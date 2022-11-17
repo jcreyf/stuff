@@ -63,6 +63,7 @@ import signal
 import ast
 import pprint           # Used to pretty-print the config;
 import smtplib, ssl     # Used for email notifications;
+import platform         # Used to detect the platform the app is running on: Linux, Darwin, RPi
 
 from datetime import datetime
 from random import randint
@@ -612,10 +613,11 @@ class SlackActive:
 
         # For some reason, the ChromeDriver download url is different for MacOS vs. Linux.
         # Mac needs to have the version set to 'None' to pull the latest version, while it needs to be: 'latest' for Linux:
-        if sys.platform == "linux":
+        if platform.system() == "Linux":
             _chrome_version = "latest"
         else:
-            _chrome_version = None
+            if platform.system() == 'Darwin':
+                _chrome_version = None
 
         if not self.webbrowserVersion == "latest":
             _chrome_version = self.webbrowserVersion
@@ -625,8 +627,7 @@ class SlackActive:
         # The Raspbian project has custom built versions that we can install through:
         #   /> sudo apt-get install chromium-chromedriver
         # Simple detection mechanism to see if we're running this on a Pi:
-        # (we could also parse the data out of "os.uname()")
-        if os.name == 'posix':
+        if platform.machine() == 'armv7l':
             self.log("Running on a Raspberry PI...")
             self.log("Make sure to set 'config.webbrowser.hidden: true' if this is a headless RPi!")
             self.log("Also make sure to have this installed: 'sudo apt-get install chromium-chromedriver'")
