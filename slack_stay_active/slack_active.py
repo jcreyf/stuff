@@ -614,7 +614,19 @@ class SlackActive:
 
         if not self.webbrowserVersion == "latest":
             _chrome_version = self.webbrowserVersion
-        _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
+
+        # We need to ignore all this if we're running the app on a Raspberry PI!
+        # Google no longer builds ARM versions for the Linux32 platforms, so we can't dynamically download.
+        # The Raspbian project has custom built versions that we can install through:
+        #   /> sudo apt-get install chromium-chromedriver
+        # Simple detection mechanism to see if we're running this on a Pi:
+        # (we could also parse the data out of "os.uname()")
+        if os.name == 'posix':
+            sys.log("Running on a Raspberry PI...")
+        else:
+            # Run this on non-RPi devices:
+            _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
+
         # Open the web browser:
         self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
