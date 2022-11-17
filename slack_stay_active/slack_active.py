@@ -49,6 +49,7 @@
 #     the web page then probable shows the correct number to select.
 #     we need to parse the page and send a notification to the user with the correct number so that they
 #     can select it in the Okta client.
+#     This needs to be done in the 'okta verify' step!
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
 #   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
