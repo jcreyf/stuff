@@ -45,6 +45,10 @@
 #                            - save the process ID in a file for easier support from the command line;     #
 # ======================================================================================================== #
 # ToDo:
+#   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
+#     the web page then probable shows the correct number to select.
+#     we need to parse the page and send a notification to the user with the correct number so that they
+#     can select it in the Okta client.
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
 #   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
@@ -623,6 +627,8 @@ class SlackActive:
         # (we could also parse the data out of "os.uname()")
         if os.name == 'posix':
             self.log("Running on a Raspberry PI...")
+            self.log("Make sure to set 'config.webbrowser.hidden: true' if this is a headless RPi!")
+            self.log("Also make sure to have this installed: 'sudo apt-get install chromium-chromedriver'")
             # We should find ChromeDriver installed here:
             _chrome_service = Service('/usr/bin/chromedriver')
         else:
