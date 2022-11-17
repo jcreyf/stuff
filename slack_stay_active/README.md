@@ -184,6 +184,11 @@ If `pip` is not installed yet for Python3:
 ...
 Successfully installed PySocks-1.7.1 async-generator-1.10 attrs-22.1.0 cerberus-1.3.4 certifi-2022.9.24 exceptiongroup-1.0.4 h11-0.14.0 outcome-1.2.0 packaging-21.3 pycryptodome-3.15.0 pyparsing-3.0.9 python-dotenv-0.21.0 pyyaml-6.0 selenium-4.6.0 sniffio-1.3.0 sortedcontainers-2.4.0 tqdm-4.64.1 trio-0.22.0 trio-websocket-0.9.2 typing-extensions-4.4.0 urllib3-1.26.12 webdriver-manager-3.8.5 wsproto-1.2.0
 ```
+- There are no ARM builds of the ChromeDriver, so we can't pull the latest and greatest driver through the app on RPi's like we do on Mac and Linux.  Instead, we need to install a custom build from the Raspbian project:  
+```
+/> sudo apt-get install chromium-chromedriver
+```
+
 - Pull the secrets project from github:  
 ```
 /> git clone https://github.com/jcreyf/secrets
