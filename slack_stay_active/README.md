@@ -165,6 +165,34 @@ I had to fix ownership of my `~/.conda/` directory on my Mac (it was owned by ro
 
 ---
 
+## Installation on Raspberry PI:
+Anacondo is probably too large of a beast to install on a Raspberry PI (especially on the older Pi's with limited memory).  
+We could install MiniConda to get a basic Ananconda setup (http://repo.continuum.io/miniconda/):
+```
+curl -k http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-armv7l.sh | sudo bash
+```
+See if you can get a `conda` environment set up following the instructions above for Mac or Linux.
+
+It might be easier to use the version of Python already installed on the Pi.  
+If `pip` is not installed yet for Python3:  
+```
+/> sudo apt-get install python3-pip
+```
+- Pull this project from github and install the required packages:  
+```
+/> pip3 install -r requirements.txt
+...
+Successfully installed PySocks-1.7.1 async-generator-1.10 attrs-22.1.0 cerberus-1.3.4 certifi-2022.9.24 exceptiongroup-1.0.4 h11-0.14.0 outcome-1.2.0 packaging-21.3 pycryptodome-3.15.0 pyparsing-3.0.9 python-dotenv-0.21.0 pyyaml-6.0 selenium-4.6.0 sniffio-1.3.0 sortedcontainers-2.4.0 tqdm-4.64.1 trio-0.22.0 trio-websocket-0.9.2 typing-extensions-4.4.0 urllib3-1.26.12 webdriver-manager-3.8.5 wsproto-1.2.0
+```
+- Pull the secrets project from github:  
+```
+/> git clone https://github.com/jcreyf/secrets
+```
+- create a `slack_active.yaml` file;
+- create a `start.sh` script that exports the `JC_SECRETS_KEY` variable and executes `slack_active.py`;
+
+---
+
 ## Download the code:
 Run this in whichever directory you want to install this app:  
 (this pulls down the code that we use to encrypt/decrypt our credentials)  
