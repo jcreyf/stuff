@@ -924,7 +924,7 @@ class SlackActive:
                 emailServer.sendmail(from_addr=config['email_from'], \
                                     to_addrs=config['email_to'], \
                                     msg=message.as_string())
-        except Exception as e:
+        except Exception as ex:
             # Not being able to send a notification is not critical!  Just log the issue:
             self.log(f"Failed to send notification:\n{msg}")
             self.log(f"The exception -> {str(ex)}")
