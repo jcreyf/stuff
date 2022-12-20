@@ -1,3 +1,8 @@
+<img src="https://img.shields.io/badge/Python-FFD43B?style=for-the-badge&logo=python&logoColor=blue" />  
+
+[badges]: <> (https://github.com/alexandresanlim/Badges4-README.md-Profile/blob/master/README.md)
+
+
 # Stay active in Slack
 
 Little web scraper tool to stay active in Slack.
