@@ -60,7 +60,6 @@ import sys
 import time
 import selenium
 import yaml
-import signal
 import ast
 import pprint           # Used to pretty-print the config;
 import smtplib, ssl     # Used for email notifications;
@@ -949,6 +948,7 @@ def signal_handler(signum, frame):
 if __name__ == "__main__":
     # Set signal handlers to deal with CTRL+C presses and other ways to kill this process.
     # We do this to close the web browser window and cleanup resources:
+    import signal
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
