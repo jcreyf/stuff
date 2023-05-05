@@ -933,19 +933,17 @@ class SlackActive:
 
 # ----
 
-
-slacker = None
-
-def signal_handler(signum, frame):
-    """ Handle CRTL+C and other kill events """
-    slacker.log("End of app...")
-    # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
-    # The finally block will still execute even if we CTRL-C out of the app.
-#    slacker.end()
-    exit(0)
-
-
 if __name__ == "__main__":
+    slacker = None
+
+    def signal_handler(signum, frame):
+        """ Handle CRTL+C and other kill events """
+        slacker.log("End of app...")
+        # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
+        # The finally block will still execute even if we CTRL-C out of the app.
+    #    slacker.end()
+        exit(0)
+
     # Set signal handlers to deal with CTRL+C presses and other ways to kill this process.
     # We do this to close the web browser window and cleanup resources:
     import signal
