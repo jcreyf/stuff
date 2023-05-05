@@ -934,6 +934,7 @@ class SlackActive:
 # ----
 
 if __name__ == "__main__":
+    # Run this code when this file is opened as an application:
     slacker = None
 
     def signal_handler(signum, frame):
