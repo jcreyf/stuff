@@ -136,7 +136,7 @@ class SlackActive:
         return f"{cls.__name__}: {cls.__version__}"
 
 
-    def __init__(self):
+    def __init__(self) -> None:
         """ Constructor, initializing properties with default values. """
         self._configFile = None             # Full path to the config-file;
         self._configDate = None             # Modification date of the config-file;
@@ -146,13 +146,13 @@ class SlackActive:
         self._clickPreviousCheck = False    # Did we click during previous time check?
 
 
-    def __del__(self):
+    def __del__(self) -> None:
         """ Destructor will close the web browser and cleanup. """
 #        self.end()
         pass
 
 
-    def end(self):
+    def end(self) -> None:
         """ Method to close the web browser and cleanup resources. """
         # Close the webbrowser window (if we have one):
         if hasattr(self, '_webbrowser'):
