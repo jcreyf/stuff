@@ -131,10 +131,10 @@ class SlackActive:
 
     __version__ = "v1.6 - 2022-11-16"
 
-    @staticmethod
-    def version() -> str:
+    @classmethod
+    def version(cls) -> str:
         """ Static app version details """
-        return f"{os.path.basename(__file__)}: {SlackActive.__version__}"
+        return f"{cls.__name__}: {cls.__version__}"
 
 
     def __init__(self):
