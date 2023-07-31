@@ -54,6 +54,11 @@
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
 #   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
+#   - it has happened that the Chrome driver is trying to download a "latest" version that does not exist!
+#     The "webbrowser.chrome_version" is set to "latest" and it then threw this error:
+#        <class 'ValueError'>: There is no such driver by url https://chromedriver.storage.googleapis.com/115.0.5790/chromedriver_mac64.zip
+#     I checked the site and that version did indeed not exist.  Where is it getting that version info from if it doesn't
+#     even exist!?  Need to query the site and find the actual latest if we get this error!
 #
 import os
 import sys
