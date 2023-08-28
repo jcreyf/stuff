@@ -43,7 +43,9 @@
 #                              to its own flag now;                                                        #
 #  2022-11-16  v1.6  jcreyf  - add sending email notifications (sms through text gateways);                #
 #                            - save the process ID in a file for easier support from the command line;     #
-#  2022-11-17  v1.7  jcreyf  - get the app working on Raspberry Pi;                                        #
+#  2022-11-17  v1.7  jcreyf  Get the app working on Raspberry Pi;                                          #
+#  2023-08-28  v1.8  jcreyf  Upgrading the Chrome WebDriver after breaking changes were introduced in how  #
+#                            to download Chrome version 115 and up;                                        #
 # ======================================================================================================== #
 # ToDo:
 #   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
@@ -133,7 +135,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.6 - 2022-11-16"
+    __version__ = "v1.8 - 2023-08-28"
 
     @classmethod
     def version(cls) -> str:
@@ -640,7 +642,7 @@ class SlackActive:
             _chrome_service = Service('/usr/bin/chromedriver')
         else:
             # Run this on non-RPi devices:
-            _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
+            _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
 
         # Open the web browser:
         self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
