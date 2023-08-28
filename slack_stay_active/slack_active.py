@@ -617,6 +617,10 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
+        # Starting with Google Chrome v115 and up, WebDriver will download from here:
+        #   https://googlechromelabs.github.io/chrome-for-testing/
+        # Older versions were downloaded from here:
+        #   https://chromedriver.chromium.org/downloads
 
         # For some reason, the ChromeDriver download url is different for MacOS vs. Linux.
         # Mac needs to have the version set to 'None' to pull the latest version, while it needs to be: 'latest' for Linux:
