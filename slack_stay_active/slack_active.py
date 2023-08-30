@@ -48,6 +48,10 @@
 #                            to download Chrome version 115 and up;                                        #
 # ======================================================================================================== #
 # ToDo:
+#   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
+#     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
+#     several times for a few minutes before giving up:
+#       <class 'requests.exceptions.ConnectionError'>: Could not reach host. Are you offline?
 #   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
 #     the web page then probable shows the correct number to select.
 #     we need to parse the page and send a notification to the user with the correct number so that they
