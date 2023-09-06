@@ -652,8 +652,13 @@ class SlackActive:
             # Run this on non-RPi devices:
             _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
 
-        # Open the web browser:
-        self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
+        try:
+            # Open the web browser:
+            self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
+        except Exception as err:
+            self.log("Failed to open the web browser!")
+            self.log(err)
+
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
         #                from unknown error: unexpected command response
