@@ -650,7 +650,13 @@ class SlackActive:
             _chrome_service = Service('/usr/bin/chromedriver')
         else:
             # Run this on non-RPi devices:
-            _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
+            self.logDebug("Downloading and installing the Chrome browser (or loading from cache)")
+            try:
+                _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
+            except Exception as err:
+                self.log("Failed to load the Chrome driver!")
+                self.log(err)
+                raise err
 
         try:
             # Open the web browser:
@@ -658,6 +664,7 @@ class SlackActive:
         except Exception as err:
             self.log("Failed to open the web browser!")
             self.log(err)
+            raise err
 
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
