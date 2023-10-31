@@ -43,21 +43,45 @@
 #                              to its own flag now;                                                        #
 #  2022-11-16  v1.6  jcreyf  - add sending email notifications (sms through text gateways);                #
 #                            - save the process ID in a file for easier support from the command line;     #
+#  2022-11-17  v1.7  jcreyf  Get the app working on Raspberry Pi;                                          #
+#  2023-08-28  v1.8  jcreyf  Upgrading the Chrome WebDriver after breaking changes were introduced in how  #
+#                            to download Chrome version 115 and up;                                        #
+#  2023-11-01  v1.9  jcreyf  - dynamically find out what the latest available version is for download if   #
+#                              the "chrome_version" setting is set to "latest";                            #
+#                              (this was happening automatically in the webdriver until Chrome v115)       #
+#                            - 
 # ======================================================================================================== #
 # ToDo:
+#   - if 'chrome_version' == 'latest', then parse the latest version out of this web page and download that:
+#       https://googlechromelabs.github.io/chrome-for-testing/#stable
+#   - don't send messages outside the online hours!!!
+#   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
+#     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
+#     several times for a few minutes before giving up:
+#       <class 'requests.exceptions.ConnectionError'>: Could not reach host. Are you offline?
+#   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
+#     the web page then probable shows the correct number to select.
+#     we need to parse the page and send a notification to the user with the correct number so that they
+#     can select it in the Okta client.
+#     This needs to be done in the 'okta verify' step!
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
 #   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
+#   - it has happened that the Chrome driver is trying to download a "latest" version that does not exist!
+#     The "webbrowser.chrome_version" is set to "latest" and it then threw this error:
+#        <class 'ValueError'>: There is no such driver by url https://chromedriver.storage.googleapis.com/115.0.5790/chromedriver_mac64.zip
+#     I checked the site and that version did indeed not exist.  Where is it getting that version info from if it doesn't
+#     even exist!?  Need to query the site and find the actual latest if we get this error!
 #
 import os
 import sys
 import time
 import selenium
 import yaml
-import signal
 import ast
 import pprint           # Used to pretty-print the config;
 import smtplib, ssl     # Used for email notifications;
+import platform         # Used to detect the platform the app is running on: Linux, Darwin, RPi
 
 from datetime import datetime
 from random import randint
@@ -122,15 +146,15 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.6 - 2022-11-16"
+    __version__ = "v1.9 - 2023-11-01"
 
-    @staticmethod
-    def version() -> str:
+    @classmethod
+    def version(cls) -> str:
         """ Static app version details """
-        return f"{os.path.basename(__file__)}: {SlackActive.__version__}"
+        return f"{cls.__name__}: {cls.__version__}"
 
 
-    def __init__(self):
+    def __init__(self) -> None:
         """ Constructor, initializing properties with default values. """
         self._configFile = None             # Full path to the config-file;
         self._configDate = None             # Modification date of the config-file;
@@ -140,13 +164,13 @@ class SlackActive:
         self._clickPreviousCheck = False    # Did we click during previous time check?
 
 
-    def __del__(self):
+    def __del__(self) -> None:
         """ Destructor will close the web browser and cleanup. """
 #        self.end()
         pass
 
 
-    def end(self):
+    def end(self) -> None:
         """ Method to close the web browser and cleanup resources. """
         # Close the webbrowser window (if we have one):
         if hasattr(self, '_webbrowser'):
@@ -546,6 +570,25 @@ class SlackActive:
         return enc
 
 
+    def getLatestChromeVersion(self) -> str:
+        """ Method to find the latest and greatest version number of the stable Chrome web browser.
+        
+        Arguments:
+            None
+        
+        Returns:
+            str: the version number
+        """
+        self.log("Finding out what the 'latest' stable version is of Chrome...")
+        _chrome_versions_url = "https://googlechromelabs.github.io/chrome-for-testing/#stable"
+        _chrome_version = "118.0.5993.70"
+
+#Seems like the version may be different for each OS
+
+        self.log(f"Latest stable Chrome version: {_chrome_version}")
+        return _chrome_version
+
+
     def loadWebBrowser(self):
         """ Method to load the web browser and navigate to the Slack web page.
         
@@ -604,19 +647,57 @@ class SlackActive:
         # has bugs and is acting up or is behaving differently for some reason.
         # The driver is by default installed in:
         #   ~/.wdm/drivers/chromedriver/mac64/
+        # Starting with Google Chrome v115 and up, WebDriver will download from here:
+        #   https://googlechromelabs.github.io/chrome-for-testing/
+        # Older versions were downloaded from here:
+        #   https://chromedriver.chromium.org/downloads
 
         # For some reason, the ChromeDriver download url is different for MacOS vs. Linux.
         # Mac needs to have the version set to 'None' to pull the latest version, while it needs to be: 'latest' for Linux:
-        if sys.platform == "linux":
+        if platform.system() == "Linux":
             _chrome_version = "latest"
         else:
-            _chrome_version = None
+            if platform.system() == 'Darwin':
+                _chrome_version = None
 
-        if not self.webbrowserVersion == "latest":
+        if self.webbrowserVersion == "latest":
+            # The webdriver no longer automatically pulls the latest version when we tell it to fetch the "latest".
+            # This changed with Chrome v115 and up.
+            # We now need to dynamically find the latest by parsing the download page:
+            _chrome_version = self.getLatestChromeVersion()
+        else:
+            # Use whatever version is set in the config:
             _chrome_version = self.webbrowserVersion
-        _chrome_service = Service(ChromeDriverManager(version=_chrome_version).install())
-        # Open the web browser:
-        self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
+
+        # We need to ignore all this if we're running the app on a Raspberry PI!
+        # Google no longer builds ARM versions for the Linux32 platforms, so we can't dynamically download.
+        # The Raspbian project has custom built versions that we can install through:
+        #   /> sudo apt-get install chromium-chromedriver
+        # Simple detection mechanism to see if we're running this on a Pi:
+        if platform.machine() == 'armv7l':
+            self.log("Running on a Raspberry PI...")
+            self.log("Make sure to set 'config.webbrowser.hidden: true' if this is a headless RPi!")
+            self.log("Also make sure to have this installed: 'sudo apt-get install chromium-chromedriver'")
+            # We should find ChromeDriver installed here:
+            _chrome_service = Service('/usr/bin/chromedriver')
+        else:
+            # Run this on non-RPi devices:
+            self.logDebug("Downloading and installing the Chrome browser (or loading from cache)")
+            try:
+                _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
+            except Exception as err:
+                self.log("Failed to load the Chrome driver!")
+                self.log(err)
+                raise err
+
+        try:
+            # Open the web browser:
+            self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
+        except Exception as err:
+            self.log("Failed to open the web browser!")
+            self.log(err)
+            raise err
+
         # 2022-07-01: The above line started throwing this exception for some dark reason after upgrading to Chrome v103.0.5060.53:
         #             -> unknown error: cannot determine loading status
         #                from unknown error: unexpected command response
@@ -704,6 +785,12 @@ class SlackActive:
             #             webpage got loaded instead of the 2FA page.
             self.logDebug("  Okta verify...")
             try:
+                self.logDebug("----------------------------------------")
+                self.logDebug("Okta verify page:")
+                self.logDebug("========================================")
+                self.logDebug(self._webbrowser.page_source)
+                self.logDebug("========================================")
+
                 # We're now at the "Okta Verify" page (most of the time):
                 #   <label for="input82" data-se-for-name="autoPush" class>Send push automatically</label>
                 #
@@ -712,10 +799,17 @@ class SlackActive:
                 # No timeout, so we got the 2FA page.  Click the damn thing!
                 okta_verify.click()
             except TimeoutException as te:
+                self.logDebug("Okta verify timed out")
                 # We're not getting the 2FA page.  Lets see if we got the final page that has the testing input box:
                 if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
                     self.logDebug("  -> Okta 2FA skipped!")
                 else:
+                    self.logDebug("----------------------------------------")
+                    self.logDebug("Okta verify timeout:")
+                    self.logDebug("========================================")
+                    self.logDebug(self._webbrowser.page_source)
+                    self.logDebug("========================================")
+
                     # Nope, we're not on the final webpage yet.  Raise the TimeOut exception:
                     self.logDebug("TimeOut on the Okta verification step!")
                     raise te
@@ -863,6 +957,7 @@ class SlackActive:
             message["To"] = config['email_to']
 
             _text = f"""\
+            {datetime.now().strftime('%m/%d %H:%M:%S')}
             {msg}
             Host: {self.hostname}
             """
@@ -871,7 +966,7 @@ class SlackActive:
             _html = f"""\
             <html>
             <body>
-                <p><b>{msg}</b><br>
+                <p>{datetime.now().strftime('%m/%d %H:%M:%S')}<br><b>{msg}</b><br>
                 Host: {self.hostname}</p>
             </body>
             </html>
@@ -887,7 +982,7 @@ class SlackActive:
                 emailServer.sendmail(from_addr=config['email_from'], \
                                     to_addrs=config['email_to'], \
                                     msg=message.as_string())
-        except Exception as e:
+        except Exception as ex:
             # Not being able to send a notification is not critical!  Just log the issue:
             self.log(f"Failed to send notification:\n{msg}")
             self.log(f"The exception -> {str(ex)}")
@@ -897,21 +992,21 @@ class SlackActive:
 
 # ----
 
-
-slacker = None
-
-def signal_handler(signum, frame):
-    """ Handle CRTL+C and other kill events """
-    slacker.log("End of app...")
-    # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
-    # The finally block will still execute even if we CTRL-C out of the app.
-#    slacker.end()
-    exit(0)
-
-
 if __name__ == "__main__":
+    # Run this code when this file is opened as an application:
+    slacker = None
+
+    def signal_handler(signum, frame):
+        """ Handle CRTL+C and other kill events """
+        slacker.log("End of app...")
+        # We're cleaning up resources in the finally block in the loop, so there's probably no need to do it here too.
+        # The finally block will still execute even if we CTRL-C out of the app.
+    #    slacker.end()
+        exit(0)
+
     # Set signal handlers to deal with CTRL+C presses and other ways to kill this process.
     # We do this to close the web browser window and cleanup resources:
+    import signal
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 

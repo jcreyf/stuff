@@ -1,0 +1,30 @@
+#!/bin/bash
+export JC_SECRETS_KEY=<key>
+export DEBUG=${DEBUG:-true}
+
+# Source in the config for Anaconda:
+echo "Setting Python Anaconda environment..."
+OS=$(uname -s)
+if [[ "${OS}" == "Linux" ]] ; then
+  # Linux:
+  source /etc/profile.d/conda.sh
+elif [[ "${OS}" == "Darwin" ]] ; then
+  # MAC:
+  source /opt/homebrew/anaconda3/etc/profile.d/conda.sh
+fi
+# Activate the Anaconda environment that has the correct Python setup for this project:
+conda activate slack
+echo $(conda info | grep "active environment")
+
+# Start the app in the foreground if DEBUG is enabled, otherwise run it in the background:
+if ${DEBUG} ; then
+  ./slack_active.py
+else
+  echo "Starting app in the background..."
+  nohup <path_to_app>/slack_active.py 2>&1 > <path_to_log>/slack_active.log &
+  pid=$(ps -ef | grep -v grep | grep slack_active.py | awk '{print $2}')
+  echo "PID: ${pid}"
+  # It may take a little while for the app to save the PID in the file.
+  sleep 2
+  cat slack_active.pid
+fi
