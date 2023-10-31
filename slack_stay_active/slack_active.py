@@ -46,8 +46,15 @@
 #  2022-11-17  v1.7  jcreyf  Get the app working on Raspberry Pi;                                          #
 #  2023-08-28  v1.8  jcreyf  Upgrading the Chrome WebDriver after breaking changes were introduced in how  #
 #                            to download Chrome version 115 and up;                                        #
+#  2023-11-01  v1.9  jcreyf  - dynamically find out what the latest available version is for download if   #
+#                              the "chrome_version" setting is set to "latest";                            #
+#                              (this was happening automatically in the webdriver until Chrome v115)       #
+#                            - 
 # ======================================================================================================== #
 # ToDo:
+#   - if 'chrome_version' == 'latest', then parse the latest version out of this web page and download that:
+#       https://googlechromelabs.github.io/chrome-for-testing/#stable
+#   - don't send messages outside the online hours!!!
 #   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
 #     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
 #     several times for a few minutes before giving up:
@@ -139,7 +146,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.8 - 2023-08-28"
+    __version__ = "v1.9 - 2023-11-01"
 
     @classmethod
     def version(cls) -> str:
@@ -563,6 +570,25 @@ class SlackActive:
         return enc
 
 
+    def getLatestChromeVersion(self) -> str:
+        """ Method to find the latest and greatest version number of the stable Chrome web browser.
+        
+        Arguments:
+            None
+        
+        Returns:
+            str: the version number
+        """
+        self.log("Finding out what the 'latest' stable version is of Chrome...")
+        _chrome_versions_url = "https://googlechromelabs.github.io/chrome-for-testing/#stable"
+        _chrome_version = "118.0.5993.70"
+
+#Seems like the version may be different for each OS
+
+        self.log(f"Latest stable Chrome version: {_chrome_version}")
+        return _chrome_version
+
+
     def loadWebBrowser(self):
         """ Method to load the web browser and navigate to the Slack web page.
         
@@ -634,7 +660,13 @@ class SlackActive:
             if platform.system() == 'Darwin':
                 _chrome_version = None
 
-        if not self.webbrowserVersion == "latest":
+        if self.webbrowserVersion == "latest":
+            # The webdriver no longer automatically pulls the latest version when we tell it to fetch the "latest".
+            # This changed with Chrome v115 and up.
+            # We now need to dynamically find the latest by parsing the download page:
+            _chrome_version = self.getLatestChromeVersion()
+        else:
+            # Use whatever version is set in the config:
             _chrome_version = self.webbrowserVersion
 
         # We need to ignore all this if we're running the app on a Raspberry PI!
