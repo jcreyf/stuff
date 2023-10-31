@@ -22,10 +22,10 @@ class TimeExclusions:
 
     __version__ = "v1.2 - 2022-11-09"
 
-    @staticmethod
-    def version() -> str:
+    @classmethod
+    def version(cls) -> str:
         """ Static app version details """
-        return f"{os.path.basename(__file__)}: {TimeExclusions.__version__}"
+        return f"{cls.__name__}: {cls.__version__}"
 
 
     def __init__(self):

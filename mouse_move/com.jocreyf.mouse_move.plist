@@ -7,6 +7,7 @@
             com.jocreyf.mouse_move.plist: OK
 
     See if we already have a launchd entry for this app:
+    (this also shows the PID of any running instance of the launchd process)
         /> launchctl list | grep mouse_move
 
     Load the config in launchd when ready to have the app run in the background:
@@ -35,7 +36,18 @@
     <string>com.jocreyf.mouse_move</string>
     <key>Program</key>
     <string>/Users/JCREYF/data/jcreyf/git/jcreyf/stuff/mouse_move/mouse_move</string>
-    <!-- Run when the PC boots and hourly thereafter (just in case it got killed for some reason) -->
+    <!--
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/launchctl</string>
+        <string>setenv</string>
+        <string>DISPLAY</string>
+        This may need to change to: /private/tmp/com.apple.launchd.dz41OmcJqR/org.macosforge.xquartz:0
+        <string>:0</string>
+    </array>
+    -->
+    <!-- Run when the PC boots or when this plist file gets reloaded and hourly thereafter
+         (just in case it got killed for some reason) -->
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>
