@@ -54,6 +54,7 @@
 # ToDo:
 #   - if 'chrome_version' == 'latest', then parse the latest version out of this web page and download that:
 #       https://googlechromelabs.github.io/chrome-for-testing/#stable
+#       https://omahaproxy.appspot.com/
 #   - don't send messages outside the online hours!!!
 #   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
 #     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
@@ -95,6 +96,9 @@ from selenium.common.exceptions import TimeoutException
 # We need the webdriver_manager to auto-download drivers:
 # This is not a Selenium package!  https://github.com/SergeyPirogov/webdriver_manager
 from webdriver_manager.chrome import ChromeDriverManager
+# We need urllib and bs4 (BeautifulSoup) to dynamically find the latest and greatest version number of the Chrome webdriver:
+from urllib import request          # Used to load the version web page into memory
+from bs4 import BeautifulSoup       # Used to parse the web page and find the info that we need
 # Needed to validate and normalize the config-file:
 from cerberus import Validator
 # Needed to determine if we should trigger an event based on time-of-day and day-in-year:
@@ -581,9 +585,44 @@ class SlackActive:
         """
         self.log("Finding out what the 'latest' stable version is of Chrome...")
         _chrome_versions_url = "https://googlechromelabs.github.io/chrome-for-testing/#stable"
-        _chrome_version = "118.0.5993.70"
+        _chrome_version = "latest"
 
-#Seems like the version may be different for each OS
+        # Read the Chrome verion web page into memory:
+        html=request.urlopen(_chrome_versions_url)
+        soup=BeautifulSoup(html, "html.parser")
+        # Find all "div" elements in the web page that have the "summary" class set.
+        # This is the rolled up version info table:
+        section=soup.find('div', attrs={"class": "summary"})
+        if not section:
+            self.log("Section not found that has the table with stable version information!")
+# JCREYF - ToDo: not sure what we should do here.  Keep going and try with "latest" regardless!?
+        else:
+            # We have the section.  Now parse out the actual table:
+            table=section.find("table")
+            table_body=table.find("tbody")
+            self.logDebug(f"Version info table: {table_body.contents}")
+            # Find all the rows in the table that have the "status-ok" class set.
+            # These are the current releases, exluding upcoming versions:
+            rows=table_body.findAll('tr', attrs={"class": "status-ok"}, recursive=True)
+            # Loop through the rows and find the one that has the "stable" version info:
+            for row in rows:
+                if row.find('a').contents[0] == "Stable":
+                    # Got it!  Parse out the version number:
+                    _chrome_version=row.find('code').contents[0]
+                    self.log(f"latest and greatest Chrome version: {_chrome_version}")
+                    break
+
+# JCREYF - Seems like the version may be different for each OS!?
+#          Look here:
+#            https://omahaproxy.appspot.com/
+
+# It also looks like we should see if we have Google Chrome installed on the machine and use the same version of that installation.
+# We'll run into errors like this if we pull down a version that is too new:
+#   Exception! -> <class 'selenium.common.exceptions.SessionNotCreatedException'>: Message: session not created: This version of ChromeDriver only supports Chrome version 119
+#   Current browser version is 118.0.5993.117 with binary path /opt/google/chrome/chrome
+#
+#    /> /opt/google/chrome/chrome --version
+#        Google Chrome 119.0.6045.105 unknown
 
         self.log(f"Latest stable Chrome version: {_chrome_version}")
         return _chrome_version
@@ -664,6 +703,7 @@ class SlackActive:
             # The webdriver no longer automatically pulls the latest version when we tell it to fetch the "latest".
             # This changed with Chrome v115 and up.
             # We now need to dynamically find the latest by parsing the download page:
+            self.logDebug("Try and find the most current version of the Chrome web browser...")
             _chrome_version = self.getLatestChromeVersion()
         else:
             # Use whatever version is set in the config:
