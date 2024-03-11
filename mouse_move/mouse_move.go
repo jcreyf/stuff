@@ -6,14 +6,9 @@
 	bounced for new settings to take effect.
 
 	------------------------------------------------------------------------------------------------------
-	Some temp quick notes:
-		export GOPATH=/Users/JCREYF/data/development/go/externals
-
-		go get github.com/go-yaml/yaml
-			-> /Users/JCREYF/data/development/go/externals/src/github.com/go-yaml/
-	or
-		go get gopkg.in/yaml.v3
-			-> /Users/JCREYF/data/development/go/externals/src/gopkg.in/yaml.v3/
+	Init the app and download dependencies:
+		go mod init mouse_move.go
+		go mod tidy
 
 	Build the app:
 		go build mouse_move.go
@@ -23,12 +18,14 @@
 
 	Run it as a process in the background through launchd:
 		-> see details in the com.jocreyf.mouse_move.plist file
+
 	======================================================================================================
-	 2020-03-12  v0.1  jcreyf  Initial POC version
-	 2022-05-31  v1.0  jcreyf  Restructuring things and pushing to git
-	 2022-06-01  v1.1  jcreyf  Make the mouse move more than 1 pixel and have it done in "smooth" mode
-	 2022-06-03  v1.2  jcreyf  A simple mouse move seems not enough any longer.  Adding in a mouse click.
-	 2022-07-05  v1.3  jcreyf  Removing the click again and changing the log output a little.
+	2020-03-12  v0.1  jcreyf  Initial POC version
+	2022-05-31  v1.0  jcreyf  Restructuring things and pushing to git
+	2022-06-01  v1.1  jcreyf  Make the mouse move more than 1 pixel and have it done in "smooth" mode
+	2022-06-03  v1.2  jcreyf  A simple mouse move seems not enough any longer.  Adding in a mouse click.
+	2022-07-05  v1.3  jcreyf  Removing the click again and changing the log output a little.
+	2024-03-11	v1.4  jcreyf  Updating to make project compilable through Go v1.22
 	======================================================================================================
 */
 package main
@@ -50,7 +47,7 @@ import (
 	"gopkg.in/yaml.v3"          // Needed to parse YAML config
 )
 
-var app_version string = "v1.3 (2022-07-05)"
+var app_version string = "v1.4 (2024-03-11)"
 var config *appConfig = nil
 var configFileStat os.FileInfo = nil
 
@@ -134,10 +131,11 @@ func setFieldDefaultValue(field reflect.Value, defaultVal string) error {
 /*
 	Read and parse the config yaml-file:
 	example file:
+
 		config:
-		  enabled: true
-		  debug: true
-		  delay_seconds: 10
+			enabled: true
+			debug: true
+			delay_seconds: 10
 */
 func readConfig(filename string) (*appConfig, error) {
 	yamlFile, err := ioutil.ReadFile(filename)
