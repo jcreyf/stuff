@@ -105,6 +105,7 @@ export JC_SECRETS_KEY=<key_string>
 
 ## Installation on Mac:
 
+### Anaconda:
 Skip all the Anaconda steps if you're not interested in setting up separate, shielded Python runtime environments.
 Run this if you decide to not go with Anaconda:
 ```
@@ -155,7 +156,15 @@ I had to fix ownership of my `~/.conda/` directory on my Mac (it was owned by ro
 /> conda install -c conda-forge packaging
 ```
 
-- Test the app:  
+
+### Python Virtual Environment:
+If you're using Python native Virtual Environments, then do this:
+/> python -m venv ./.venv
+/> source .venv/bin/activate
+/> pip install requirements.txt
+
+
+### Test the app:  
 (this is what we expect to see when your Python environment is setup correctly)  
 ```
 /> ./slack_active.py --test
