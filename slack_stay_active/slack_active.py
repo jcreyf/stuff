@@ -14,7 +14,10 @@
 #                                                                                                          #
 # Install the Selenium and Webdriver Manager packages (see requirements.txt):                              #
 # (make sure to have Selenium v4 or greater installed!)                                                    #
-#   pip install selenium webdriver-manager cerberus pyyaml pycryptodome                                    #
+#   python3 -m venv env                                                                                    #
+#   source env/bin/activate                                                                                #
+#   python3 -m pip install --upgrade pip                                                                   #
+#   python3 -m pip install selenium webdriver-manager cerberus pyyaml pycryptodome bs4                     #
 # or                                                                                                       #
 #   conda install -c conda-forge selenium webdriver-manager cerberus pyyaml pycryptodome                   #
 #                                                                                                          #
@@ -49,12 +52,10 @@
 #  2023-11-01  v1.9  jcreyf  - dynamically find out what the latest available version is for download if   #
 #                              the "chrome_version" setting is set to "latest";                            #
 #                              (this was happening automatically in the webdriver until Chrome v115)       #
-#                            - 
+#  2025-09-18  v1.10 jcreyf  - fixing some issues with untrusted certs and web page scaling;               #
+#                            - adding a debug flag to the command line to override config file setting;    #
 # ======================================================================================================== #
 # ToDo:
-#   - if 'chrome_version' == 'latest', then parse the latest version out of this web page and download that:
-#       https://googlechromelabs.github.io/chrome-for-testing/#stable
-#       https://omahaproxy.appspot.com/
 #   - don't send messages outside the online hours!!!
 #   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
 #     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
@@ -67,8 +68,7 @@
 #     This needs to be done in the 'okta verify' step!
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
-#   - get the zoom to work!  The ChromeDriver seems to be ignoring everything I try or is resetting it all
-#   - it has happened that the Chrome driver is trying to download a "latest" version that does not exist!
+#   - FIXED? -> it has happened that the Chrome driver is trying to download a "latest" version that does not exist!
 #     The "webbrowser.chrome_version" is set to "latest" and it then threw this error:
 #        <class 'ValueError'>: There is no such driver by url https://chromedriver.storage.googleapis.com/115.0.5790/chromedriver_mac64.zip
 #     I checked the site and that version did indeed not exist.  Where is it getting that version info from if it doesn't
@@ -150,7 +150,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.9 - 2023-11-01"
+    __version__ = "v1.10 - 2025-09-18"
 
     @classmethod
     def version(cls) -> str:
@@ -162,7 +162,7 @@ class SlackActive:
         """ Constructor, initializing properties with default values. """
         self._configFile = None             # Full path to the config-file;
         self._configDate = None             # Modification date of the config-file;
-        self._settings = {}                 # Dictionary with our settings loaded from the config-file;
+        self._settings = {"config": {"debug": False}}  # Dictionary with our settings loaded from the config-file;
         self._timeexclusion = None          # Object that decides if the current time is a valid trigger time;
         self._testMode = False              # Is the app running in test mode?
         self._clickPreviousCheck = False    # Did we click during previous time check?
@@ -503,6 +503,10 @@ class SlackActive:
             print(validator.errors)
             sys.exit(1)
 
+        # We may have set the DEBUG flag from the command-line.  If so, override the config-file setting:
+        if self._settings['config']['debug'] != DEBUG:
+            self._settings['config']['debug'] = DEBUG
+
         # Try set the encryption key from either the command-line of from the environment variable
         # if it's not set in the config-file:
         if self.encryptionKey == '':
@@ -587,8 +591,14 @@ class SlackActive:
         _chrome_versions_url = "https://googlechromelabs.github.io/chrome-for-testing/#stable"
         _chrome_version = "latest"
 
+        # Ignore SSL certificate verification (this is not good!  It's a hack to bypass potential SSL issues)
+        # This is bypassing error:
+        #   urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1032)
+        # The fix should be to install the proper root CA certificates on the machine...but I can't, so need to bypass it.
+        context = ssl._create_unverified_context()
+
         # Read the Chrome verion web page into memory:
-        html=request.urlopen(_chrome_versions_url)
+        html=request.urlopen(_chrome_versions_url, context=context)
         soup=BeautifulSoup(html, "html.parser")
         # Find all "div" elements in the web page that have the "summary" class set.
         # This is the rolled up version info table:
@@ -654,9 +664,6 @@ class SlackActive:
         #   https://peter.sh/experiments/chromium-command-line-switches/
         chrome_options.add_argument(f"window-position={self.webbrowserPosition}")
         chrome_options.add_argument(f"window-size={self.webbrowserSize}")
-        # 2022-10-27: the ChromeDriver is ignoring these zoom settings:
-        chrome_options.add_argument("force-device-scale-factor=0.75")
-        chrome_options.add_argument("high-dpi-support=0.75")
         # Set the Google Chrome user profile dir.
         # This enables us to save the session information and with that, bypass a bunch of redirection and authentication
         # hoops if we want to run this frequently.  The browser will only force us through the Okta auth when the session
@@ -722,8 +729,14 @@ class SlackActive:
             _chrome_service = Service('/usr/bin/chromedriver')
         else:
             # Run this on non-RPi devices:
-            self.logDebug("Downloading and installing the Chrome browser (or loading from cache)")
+            self.log(f"Downloading and installing Chrome browser v{_chrome_version} (or loading from cache if already installed)...")
             try:
+                # Ignore SSL certificate verification (this is not good!  It's a hack to bypass potential SSL issues)
+                # This is bypassing error:
+                #   <class 'requests.exceptions.ConnectionError'>: Could not reach host. Are you offline?
+                # Debugging shows that this is what's causing the issue: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier
+                # The fix should be to install the proper root CA certificates on the machine...but I can't, so need to bypass it.
+                os.environ['WDM_SSL_VERIFY'] = '0'
                 _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
             except Exception as err:
                 self.log("Failed to load the Chrome driver!")
@@ -862,11 +875,14 @@ class SlackActive:
         # Resize the webpage
         # 2022-07-18: Ran into this error here since upgrading to Chrome v103.0.5060.114:
         #             -> javascript error: Cannot read properties of null (reading 'style')
-        #             The resize is just a nice to have.  Ignoring any potential errors here:
+        #             The resize is just a nice to have.  Ignoring any potential errors here.
+        # 2025-09-18: The resize works on the web page but it doesn't work on the actual browser window.
+        #             The view port of the web page is scaled as expected but there are white blocks horizontally and vertically
+        #             around the web page.  Making the web browser window smaller is not removing those white blocks.  It leaves them
+        #             in place and shows less of the web page.  This is apparently a shortcoming of ChromeDriver and Selenium.
         self.logDebug(f"Resize webpage to: {self.webpageSize}")
         try:
-            self._webbrowser.execute_script(f"document.body.style.zoom='{self.webpageSize}'")
-            self._webbrowser.refresh()
+            self._webbrowser.execute_script(f"document.documentElement.style.zoom='{self.webpageSize}'")
         except Exception:
             self.logDebug("There was an issue resizing the webpage")
 
@@ -1058,7 +1074,7 @@ if __name__ == "__main__":
                             version=SlackActive.__version__)
     parser.add_argument("--test", \
                             action="store_true", \
-                            help="Test the app without opening a webbrowser and accessing Slack")
+                            help="test the app without opening a webbrowser and accessing Slack")
     parser.add_argument("-e", "--encrypt", \
                             dest="__ENCRYPT", \
                             required=False, \
@@ -1069,6 +1085,11 @@ if __name__ == "__main__":
                             required=False, \
                             metavar="<string>", \
                             help="encryption key (you can also set env var 'JC_SECRETS_KEY')")
+    parser.add_argument("-d", "--debug", \
+                            dest="__DEBUG", \
+                            required=False, \
+                            action="store_true", \
+                            help="turn on debug messages")
     # Parse the command-line arguments:
     __ARGS=parser.parse_args()
 
@@ -1076,6 +1097,7 @@ if __name__ == "__main__":
     encrypt=__ARGS.__ENCRYPT
     cli_key=__ARGS.__KEY
     TEST=__ARGS.test
+    DEBUG=__ARGS.__DEBUG
 
     if TEST:
         print("** TEST MODE **")
@@ -1088,6 +1110,7 @@ if __name__ == "__main__":
     while _loop:
         try:
             slacker = SlackActive()
+            slacker.debug = DEBUG
             slacker.log("==================")
             slacker.log(slacker.version())
             slacker.saveProcessID()
