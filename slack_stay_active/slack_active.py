@@ -54,6 +54,16 @@
 #                              (this was happening automatically in the webdriver until Chrome v115)       #
 #  2025-09-18  v1.10 jcreyf  - fixing some issues with untrusted certs and web page scaling;               #
 #                            - adding a debug flag to the command line to override config file setting;    #
+#  2025-10-30  v1.11 jcreyf  Add support for "installed" Chrome version detection.                         #
+#                            This solves issues with mismatched Chrome and ChromeDriver versions:          #
+#                                Exception! -> <class 'selenium.common.exceptions.                         #
+#                                    .SessionNotCreatedException'>: Message: session not created: This     #
+#                                    version of ChromeDriver only supports Chrome version 119              #
+#                                Current browser version is 118.0.5993.117 with binary path                #
+#                                    /opt/google/chrome/chrome                                             #
+#                                                                                                          #
+#                             /> /opt/google/chrome/chrome --version                                       #
+#                             Google Chrome 119.0.6045.105 unknown                                         #
 # ======================================================================================================== #
 # ToDo:
 #   - don't send messages outside the online hours!!!
@@ -83,6 +93,7 @@ import ast
 import pprint           # Used to pretty-print the config;
 import smtplib, ssl     # Used for email notifications;
 import platform         # Used to detect the platform the app is running on: Linux, Darwin, RPi
+import subprocess       # Used to run shell commands (find the version of installed Chrome browser)
 
 from datetime import datetime
 from random import randint
@@ -150,7 +161,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.10 - 2025-09-18"
+    __version__ = "v1.11 - 2025-10-30"
 
     @classmethod
     def version(cls) -> str:
@@ -424,7 +435,7 @@ class SlackActive:
                 window_position: 5,10
                 window_size: 300,500
                 page_size: 75%
-                chrome_version: "latest"
+                chrome_version: "installed|latest|<version>"
             times:
                 - name: Regular Work Week
                   start: 08:45
@@ -578,8 +589,34 @@ class SlackActive:
         return enc
 
 
+    def getInstalledChromeVersion(self) -> str:
+        """ Method to get the version of the Chrome web browser that is installed on this machine.
+        
+        Arguments:
+            None
+
+        Returns:
+            str: the version number
+        """
+        self.log("Finding out what the version is of the currently installed Chrome web browser...")
+        _result = subprocess.run(
+            ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if _result.returncode == 0:
+            # Output is like: "Google Chrome 123.0.6312.86\n"
+            _version = _result.stdout.strip().split()[-1]
+            self.log(f"Installed Chrome version: {_version}")
+        else:
+            _version = None
+            self.log(f"Error getting installed Chrome version: {_result.stderr.strip()}")
+        return _version
+
+
     def getLatestChromeVersion(self) -> str:
-        """ Method to find the latest and greatest version number of the stable Chrome web browser.
+        """ Method to find the latest and greatest version number of the stable Chrome web browser that is available for download.
         
         Arguments:
             None
@@ -587,7 +624,7 @@ class SlackActive:
         Returns:
             str: the version number
         """
-        self.log("Finding out what the 'latest' stable version is of Chrome...")
+        self.log("Finding out what the 'latest' stable version is of Chrome that we can download...")
         _chrome_versions_url = "https://googlechromelabs.github.io/chrome-for-testing/#stable"
         _chrome_version = "latest"
 
@@ -626,13 +663,6 @@ class SlackActive:
 #          Look here:
 #            https://omahaproxy.appspot.com/
 
-# It also looks like we should see if we have Google Chrome installed on the machine and use the same version of that installation.
-# We'll run into errors like this if we pull down a version that is too new:
-#   Exception! -> <class 'selenium.common.exceptions.SessionNotCreatedException'>: Message: session not created: This version of ChromeDriver only supports Chrome version 119
-#   Current browser version is 118.0.5993.117 with binary path /opt/google/chrome/chrome
-#
-#    /> /opt/google/chrome/chrome --version
-#        Google Chrome 119.0.6045.105 unknown
 
         self.log(f"Latest stable Chrome version: {_chrome_version}")
         return _chrome_version
@@ -701,20 +731,34 @@ class SlackActive:
         # For some reason, the ChromeDriver download url is different for MacOS vs. Linux.
         # Mac needs to have the version set to 'None' to pull the latest version, while it needs to be: 'latest' for Linux:
         if platform.system() == "Linux":
-            _chrome_version = "latest"
+            _use_chrome_version = "latest"
         else:
             if platform.system() == 'Darwin':
-                _chrome_version = None
+                _use_chrome_version = None
 
-        if self.webbrowserVersion == "latest":
-            # The webdriver no longer automatically pulls the latest version when we tell it to fetch the "latest".
-            # This changed with Chrome v115 and up.
-            # We now need to dynamically find the latest by parsing the download page:
-            self.logDebug("Try and find the most current version of the Chrome web browser...")
-            _chrome_version = self.getLatestChromeVersion()
-        else:
-            # Use whatever version is set in the config:
-            _chrome_version = self.webbrowserVersion
+        match self.webbrowserVersion:
+            case "installed":
+                self.log("Using the installed Chrome version...")
+                # See if we can find the installed Chrome version:
+                _installed_chrome_version = self.getInstalledChromeVersion()
+                if _installed_chrome_version is None:
+                    self.log("Failed to find the installed Chrome version, so we fall back to whatever the 'latest' version is")
+                    _use_chrome_version = self.getLatestChromeVersion()
+                    self.log(f"Using the latest Chrome version: {_use_chrome_version}")
+                else:
+                    self.log(f"Using the installed Chrome version: {_installed_chrome_version}")
+                    _use_chrome_version = _installed_chrome_version
+            case "latest":
+                self.log("Using the latest Chrome version...")
+                # The webdriver no longer automatically pulls the latest version when we tell it to fetch the "latest".
+                # This changed with Chrome v115 and up.
+                # We now need to dynamically find the latest by parsing the download page:
+                _use_chrome_version = self.getLatestChromeVersion()
+                self.log(f"Using the latest Chrome version: {_use_chrome_version}")
+            case _:
+                # Use whatever version is set in the config:
+                self.log(f"Using the configured Chrome version: {self.webbrowserVersion}")
+                _use_chrome_version = self.webbrowserVersion
 
         # We need to ignore all this if we're running the app on a Raspberry PI!
         # Google no longer builds ARM versions for the Linux32 platforms, so we can't dynamically download.
@@ -729,7 +773,7 @@ class SlackActive:
             _chrome_service = Service('/usr/bin/chromedriver')
         else:
             # Run this on non-RPi devices:
-            self.log(f"Downloading and installing Chrome browser v{_chrome_version} (or loading from cache if already installed)...")
+            self.log(f"Downloading and installing Chrome browser v{_use_chrome_version} (or loading from cache if already installed)...")
             try:
                 # Ignore SSL certificate verification (this is not good!  It's a hack to bypass potential SSL issues)
                 # This is bypassing error:
@@ -737,7 +781,7 @@ class SlackActive:
                 # Debugging shows that this is what's causing the issue: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier
                 # The fix should be to install the proper root CA certificates on the machine...but I can't, so need to bypass it.
                 os.environ['WDM_SSL_VERIFY'] = '0'
-                _chrome_service = Service(ChromeDriverManager(driver_version=_chrome_version).install())
+                _chrome_service = Service(ChromeDriverManager(driver_version=_use_chrome_version).install())
             except Exception as err:
                 self.log("Failed to load the Chrome driver!")
                 self.log(err)
