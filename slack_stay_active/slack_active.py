@@ -844,15 +844,21 @@ class SlackActive:
             #           margin_bottom_150" data-qa="submit_team_domain_button" type="submit">…</button>
             button = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
             button.click()
-            self.log("  Sign in to company...")
-            # We now moved on to the "Sign in to <company>" page:
-            #
-            #   <a id="enterprise_member_guest_account_signin_link_..." data-clog-event="WEBSITE_CLICK" 
-            #      data-clog-params="click_target=enterprise_member_signin_with_saml_provider" 
-            #      href="/sso/saml/start?redir=%2Fr-t16129201079%3Fredir%3D%252Fgantry%252Fauth%2…dca9f47164352ae3ac5ffee99ee7202a9001e8e8440cb1919079614992304&action=login" 
-            #      class="btn btn_large sign_in_sso_btn top_margin">
-            logon = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-clog-event='WEBSITE_CLICK']")))
-            logon.click()
+
+            try:
+                self.log("  Sign in to company...")
+                # We now moved on to the "Sign in to <company>" page:
+                #
+                #   <a id="enterprise_member_guest_account_signin_link_..." data-clog-event="WEBSITE_CLICK" 
+                #      data-clog-params="click_target=enterprise_member_signin_with_saml_provider" 
+                #      href="/sso/saml/start?redir=%2Fr-t16129201079%3Fredir%3D%252Fgantry%252Fauth%2…dca9f47164352ae3ac5ffee99ee7202a9001e8e8440cb1919079614992304&action=login" 
+                #      class="btn btn_large sign_in_sso_btn top_margin">
+                logon = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-clog-event='WEBSITE_CLICK']")))
+                logon.click()
+            except Exception as e:
+                self.log("Signin failed!")
+                raise e
+
             self.log("  Enter credentials...")
             # We now moved to the "ID[me] Sign-in Page":
             #
