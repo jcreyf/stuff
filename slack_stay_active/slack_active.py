@@ -789,6 +789,7 @@ class SlackActive:
 
         try:
             # Open the web browser:
+            self.log("Opening the web browser...")
             self._webbrowser = webdriver.Chrome(service=_chrome_service, options=chrome_options)
         except Exception as err:
             self.log("Failed to open the web browser!")
@@ -804,30 +805,30 @@ class SlackActive:
         self._webbrowser.get("file:///")
         try:
             # Now navigate to the Slack web page and wait for it to be loaded:
-            self.logDebug(f"Load web page: {self.slackURL}")
+            self.log(f"Load web page: {self.slackURL}")
             self._webbrowser.get(self.slackURL)
             WebDriverWait(self._webbrowser, timeout=600).until(EC.presence_of_element_located((By.XPATH, "//html")))
         except Exception as err:
-            self.logDebug(err)
+            self.log(err)
             raise Exception("We got a timeout!  It's taking too long to load the page.")
 
         # We may already be on the Slack page at this point if we had a valid session and cookies in our Chrome cache.
         # Let's see if we can see the Slack textbox that we use to type a message in:
         # (it might make more sense to simply grep for the CSS selector in the HTML code at this point)
         try:
-            self.logDebug("See if the page has a valid Slack text input box...")
+            self.log("See if the page has a valid Slack text input box...")
             WebDriverWait(driver=self._webbrowser, timeout=30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")))
             _found = True
         except:
             _found = False
 
         if not _found:
-            self.logDebug("We're not on the correct Slack page yet!")
+            self.log("We're not on the correct Slack page yet!")
             # We'll give Selenium search requests up to a minute to respond:
             webwait = WebDriverWait(driver=self._webbrowser, timeout=60)
             # This is not the Slack page yet that we want to see!
             # We need to go through the gates of hell...
-            self.logDebug("  Sign in to your workspace...")
+            self.log("  Sign in to your workspace...")
             # This is when the "Sign in to your workspace" page comes up:
             #
             #   <input data-qa="signin_domain_input" aria-describedby="domain_hint" aria-invalid="false" 
@@ -843,7 +844,7 @@ class SlackActive:
             #           margin_bottom_150" data-qa="submit_team_domain_button" type="submit">…</button>
             button = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
             button.click()
-            self.logDebug("  Sign in to company...")
+            self.log("  Sign in to company...")
             # We now moved on to the "Sign in to <company>" page:
             #
             #   <a id="enterprise_member_guest_account_signin_link_..." data-clog-event="WEBSITE_CLICK" 
@@ -852,7 +853,7 @@ class SlackActive:
             #      class="btn btn_large sign_in_sso_btn top_margin">
             logon = webwait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-clog-event='WEBSITE_CLICK']")))
             logon.click()
-            self.logDebug("  Enter credentials...")
+            self.log("  Enter credentials...")
             # We now moved to the "ID[me] Sign-in Page":
             #
             #   <input type="text" placeholder name="username" id="okta-signin-username" value aria-label 
@@ -880,7 +881,7 @@ class SlackActive:
             #             Let's just wait for the 2FA page since we almost always have to go through it.
             #             We can determine if we can skip it after we get a timeout and turns out our final
             #             webpage got loaded instead of the 2FA page.
-            self.logDebug("  Okta verify...")
+            self.log("  Okta verify...")
             try:
                 self.logDebug("----------------------------------------")
                 self.logDebug("Okta verify page:")
@@ -896,10 +897,10 @@ class SlackActive:
                 # No timeout, so we got the 2FA page.  Click the damn thing!
                 okta_verify.click()
             except TimeoutException as te:
-                self.logDebug("Okta verify timed out")
+                self.log("Okta verify timed out")
                 # We're not getting the 2FA page.  Lets see if we got the final page that has the testing input box:
                 if EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-qa='message_input']")):
-                    self.logDebug("  -> Okta 2FA skipped!")
+                    self.log("  -> Okta 2FA skipped!")
                 else:
                     self.logDebug("----------------------------------------")
                     self.logDebug("Okta verify timeout:")
@@ -908,7 +909,7 @@ class SlackActive:
                     self.logDebug("========================================")
 
                     # Nope, we're not on the final webpage yet.  Raise the TimeOut exception:
-                    self.logDebug("TimeOut on the Okta verification step!")
+                    self.log("TimeOut on the Okta verification step!")
                     raise te
 
             # See if we have access to the text input box at the bottom of the page:
