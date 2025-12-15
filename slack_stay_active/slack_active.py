@@ -66,6 +66,7 @@
 #                             Google Chrome 119.0.6045.105 unknown                                         #
 # ======================================================================================================== #
 # ToDo:
+#   - Prevent the app from opening multiple instances
 #   - don't send messages outside the online hours!!!
 #   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
 #     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
