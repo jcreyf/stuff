@@ -64,9 +64,9 @@
 #                                                                                                          #
 #                             /> /opt/google/chrome/chrome --version                                       #
 #                             Google Chrome 119.0.6045.105 unknown                                         #
+#  2025-12-15  v1.12 jcreyf  - Prevent the app from opening multiple instances.                            #
 # ======================================================================================================== #
 # ToDo:
-#   - Prevent the app from opening multiple instances
 #   - don't send messages outside the online hours!!!
 #   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
 #     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
@@ -162,7 +162,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.11 - 2025-10-30"
+    __version__ = "v1.12 - 2025-12-15"
 
     @classmethod
     def version(cls) -> str:
@@ -400,7 +400,7 @@ class SlackActive:
         """ Method to save the PID of this process to a file.
         
         It's sometimes handy to have the process ID for command-line operation.
-        We could of course get the PID through the ps-command but why no save it to be sure!?
+        We could of course get the PID through the ps-command but why not save it to be sure!?
         """
         try:
             pid_file_path = f"{os.path.dirname(os.path.realpath(__file__))}/slack_active.pid"
@@ -410,6 +410,111 @@ class SlackActive:
                 pid_file.write(f"{pid}\n")
         except:
             pass
+
+
+    def checkExistingInstance(self) -> bool:
+        """ Method to check if another instance of the app is already running.
+        
+        This method searches for other running processes with the same script name,
+        excluding the current process. Works on both Linux and macOS.
+        Returns True if another instance is running, False otherwise.
+        """
+        try:
+            current_pid = os.getpid()
+            script_name = os.path.basename(__file__)
+
+            # Method 1: Use ps command (works on both Linux and macOS)
+            try:
+                result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    processes = result.stdout.split('\n')
+                    running_instances = 0
+                    for process in processes:
+                        # Check if this line contains our script name and is a Python process
+                        if script_name in process and 'python' in process:
+                            # Extract PID (second column in ps aux output)
+                            parts = process.split()
+                            if len(parts) >= 2:
+                                try:
+                                    pid = int(parts[1])
+                                    if pid != current_pid:
+                                        running_instances += 1
+                                        self.log(f"Found existing instance with PID: {pid}")
+                                except ValueError:
+                                    continue
+                    return running_instances > 0
+            except Exception as e:
+                self.log(f"Error using ps command: {e}")
+
+            # Method 2: Use pgrep command (works on both Linux and macOS)
+            try:
+                # Use pgrep to find processes with our script name
+                result = subprocess.run(['pgrep', '-f', script_name], capture_output=True, text=True)
+                if result.returncode == 0:
+                    pids = result.stdout.strip().split('\n')
+                    running_instances = 0
+                    for pid_str in pids:
+                        if pid_str.strip():
+                            try:
+                                pid = int(pid_str.strip())
+                                if pid != current_pid:
+                                    running_instances += 1
+                                    self.log(f"Found existing instance with PID: {pid}")
+                            except ValueError:
+                                continue
+                    return running_instances > 0
+            except Exception as e:
+                self.log(f"Error using pgrep command: {e}")
+
+            # Method 3: Platform-specific fallback
+            system = platform.system()
+            if system == "Linux":
+                # Use /proc filesystem on Linux
+                try:
+                    running_instances = 0
+                    for pid_dir in os.listdir('/proc'):
+                        if pid_dir.isdigit():
+                            pid = int(pid_dir)
+                            if pid == current_pid:
+                                continue
+                            try:
+                                with open(f'/proc/{pid}/cmdline', 'r') as f:
+                                    cmdline = f.read()
+                                    if script_name in cmdline and 'python' in cmdline:
+                                        running_instances += 1
+                                        self.log(f"Found existing instance with PID: {pid}")
+                            except:
+                                # Process might have disappeared or we don't have permission
+                                continue
+                    return running_instances > 0
+                except Exception as e:
+                    self.log(f"Error checking /proc filesystem: {e}")
+            elif system == "Darwin":  # macOS
+                # Use ps with more specific options for macOS
+                try:
+                    result = subprocess.run(['ps', '-eo', 'pid,command'], capture_output=True, text=True)
+                    if result.returncode == 0:
+                        processes = result.stdout.split('\n')
+                        running_instances = 0
+                        for process in processes:
+                            if script_name in process and 'python' in process:
+                                parts = process.strip().split(None, 1)
+                                if len(parts) >= 1:
+                                    try:
+                                        pid = int(parts[0])
+                                        if pid != current_pid:
+                                            running_instances += 1
+                                            self.log(f"Found existing instance with PID: {pid}")
+                                    except ValueError:
+                                        continue
+                        return running_instances > 0
+                except Exception as e:
+                    self.log(f"Error using macOS-specific ps command: {e}")
+        except Exception as e:
+            self.log(f"Error checking existing instance: {e}")
+
+        # If all methods fail, assume no instance is running to avoid blocking startup
+        return False
 
 
     def loadConfig(self):
@@ -1158,6 +1263,14 @@ if __name__ == "__main__":
     # The app may run for days without any problem until at some point Slack expires the session and kicks us out.
     # Slack then basically just wants us to log in again.
     # We can try detect the session timeout and restart the app when that happens to do the auto login and keep going.
+    
+    # First, check if another instance is already running
+    print("Check if we have another instance running")
+    temp_slacker = SlackActive()
+    if temp_slacker.checkExistingInstance():
+        print("Another instance of the application is already running. Exiting...")
+        sys.exit(1)
+    
     _loop = True
     while _loop:
         try:
