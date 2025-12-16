@@ -64,7 +64,7 @@
 #                                                                                                          #
 #                             /> /opt/google/chrome/chrome --version                                       #
 #                             Google Chrome 119.0.6045.105 unknown                                         #
-#  2025-12-15  v1.12 jcreyf  - Prevent the app from opening multiple instances.                            #
+#  2025-12-15  v1.12 jcreyf   Prevent the app from opening multiple instances.                             #
 # ======================================================================================================== #
 # ToDo:
 #   - don't send messages outside the online hours!!!
