@@ -108,6 +108,8 @@ from selenium.common.exceptions import TimeoutException
 # We need the webdriver_manager to auto-download drivers:
 # This is not a Selenium package!  https://github.com/SergeyPirogov/webdriver_manager
 from webdriver_manager.chrome import ChromeDriverManager
+# Import for handling connection errors:
+import requests.exceptions
 # We need urllib and bs4 (BeautifulSoup) to dynamically find the latest and greatest version number of the Chrome webdriver:
 from urllib import request          # Used to load the version web page into memory
 from bs4 import BeautifulSoup       # Used to parse the web page and find the info that we need
@@ -1271,6 +1273,7 @@ if __name__ == "__main__":
         print("Another instance of the application is already running. Exiting...")
         sys.exit(1)
     
+    _errCnt = 0
     _loop = True
     while _loop:
         try:
@@ -1310,10 +1313,22 @@ if __name__ == "__main__":
             slacker.notify(msg=f"Slack kicked us out!\n-> {type(ex)}: {ex}\nAuto-restarting the tool now...", msg_type='send_app_restart')
         except Exception as ex:
             slacker.log(f"Exception! -> {type(ex)}: {ex}")
-            slacker.notify(msg=f"The app ran into a non-recoverable exception!\n-> {type(ex)}: {ex}\nI can't auto-restart!  YOU NEED TO LOOK INTO THIS AND MANUALLY RESTART THE TOOL!!!")
-            # Slack did not just kick us out after a while. Do not restart the loop.
-            # It may be that decryption of the credential failed.
-            # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!
-            _loop = False
+            # Check if this is a potentially recoverable exception type that we should retry:
+            if isinstance(ex, (requests.exceptions.ConnectionError, TimeoutException)):
+                slacker.log("This appears to be a network/timeout issue.")
+                _errCnt += 1
+                if _errCnt > 1:
+                    slacker.log("Too many network/timeout issues. We already retried. Giving up.")
+                    _loop = False
+                else:
+                    slacker.log("Retrying in 10 seconds...")
+                    slacker.notify(msg=f"Network/timeout issue detected:\n-> {type(ex)}: {ex}\nRetrying the connection...")
+                    time.sleep(10)
+            else:
+                slacker.notify(msg=f"The app ran into a non-recoverable exception!\n-> {type(ex)}: {ex}\nI can't auto-restart!  YOU NEED TO LOOK INTO THIS AND MANUALLY RESTART THE TOOL!!!")
+                # Slack did not just kick us out after a while. Do not restart the loop.
+                # It may be that decryption of the credential failed.
+                # ToDo: We should add some sort of notification here to let the user know the app is no longer running!!
+                _loop = False
         finally:
             slacker.end()
