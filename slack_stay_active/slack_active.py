@@ -65,13 +65,14 @@
 #                             /> /opt/google/chrome/chrome --version                                       #
 #                             Google Chrome 119.0.6045.105 unknown                                         #
 #  2025-12-15  v1.12 jcreyf   Prevent the app from opening multiple instances.                             #
+#  2025-12-23  v1.13 jcreyf   Adding a retry on some specific network issues.  My network provider has     #
+#                             blackouts from time to time that can last up to a few minutes (Starlink).    #
+#                             Don't terminate the app when there's a network issue but try a few times.    #
+#                               <class 'requests.exceptions.ConnectionError'>: Could not reach host.       #
+#                                                                              Are you offline?            #
 # ======================================================================================================== #
 # ToDo:
 #   - don't send messages outside the online hours!!!
-#   - retry a number of times when there are connectivity issues.  My network provider has blackouts from time to time
-#     that can last up to a few minutes (Starlink).  Don't terminate the app when there's a network issue but try
-#     several times for a few minutes before giving up:
-#       <class 'requests.exceptions.ConnectionError'>: Could not reach host. Are you offline?
 #   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
 #     the web page then probable shows the correct number to select.
 #     we need to parse the page and send a notification to the user with the correct number so that they
@@ -79,11 +80,6 @@
 #     This needs to be done in the 'okta verify' step!
 #   - add system notifications in case there are issues since this app may run in the background:
 #     https://github.com/ms7m/notify-py
-#   - FIXED? -> it has happened that the Chrome driver is trying to download a "latest" version that does not exist!
-#     The "webbrowser.chrome_version" is set to "latest" and it then threw this error:
-#        <class 'ValueError'>: There is no such driver by url https://chromedriver.storage.googleapis.com/115.0.5790/chromedriver_mac64.zip
-#     I checked the site and that version did indeed not exist.  Where is it getting that version info from if it doesn't
-#     even exist!?  Need to query the site and find the actual latest if we get this error!
 #
 import os
 import sys
@@ -164,7 +160,7 @@ class SlackActive:
     and go in an endless loop and thus keep the user in "active" state.
     """
 
-    __version__ = "v1.12 - 2025-12-15"
+    __version__ = "v1.13 - 2025-12-23"
 
     @classmethod
     def version(cls) -> str:
