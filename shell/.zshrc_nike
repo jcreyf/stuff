@@ -1,0 +1,616 @@
+#!/bin/zsh
+
+#
+# Function for a dynamic Terraform prompt:
+#
+function terraform_prompt {
+  # Only build a terraform prompt if there's a .terraform sub-dir in the current directory
+  if [ -d ${PWD}/.terraform ] ; then
+    local _tf_workspace
+    local _tf_log
+    local _debugFlag=""
+    # We're going to get a lot of extra garbage if we have the $TF_LOG env variable set.
+    # Remove it if set but keep track of it, so we can set it back as soon as we have the info we need!
+    test -z ${TF_LOG} ; local _logFlag=$?
+    # Remove the log level if set
+    if [[ $_logFlag -eq 1 ]] ; then 
+      _tf_log=${TF_LOG};
+      _debugFlag=" (TF_LOG=$_tf_log)"   # Show the set debug-level on the prompt
+      export TF_LOG=""; 
+    fi
+    # Get the name of the current workspace in Terraform
+    local _tf_workspace=$(terraform workspace show) 2>/dev/null
+    # Restore the log level if it was set
+    if [[ $_logFlag -eq 1 ]] ; then export TF_LOG=$_tf_log; fi
+    echo -e "[\e[1;37mTerraform -> workspace: \e[41;93;3m${_tf_workspace}\e[0m${_debugFlag} - AWS CLI pointing to: \e[41;93;3m${AWS_PROFILE}\e[0m]"
+  fi
+}
+
+alias tf='/Users/jcreyf/data/nike/platforms/tools/terraform/tf'
+
+#
+# Function for a dynamic AWS CLI prompt:
+#
+function aws_prompt {
+  local _credentials_file=${HOME}/.aws/credentials
+  local _last_profile_file=${HOME}/.aws/.last_profile
+  local _last_region_file=${HOME}/.aws/.last_region
+  local _aws_cli=$(aws --version | cut -d' ' -f1 | cut -d'/' -f2 2>/dev/null)
+  local _aws_region
+  local _aws_profile
+  local _aws_account
+  local _aws_role
+  local _session_state_color
+  # Keep track of the age of ~/.aws/credentials
+  # We use this to set color indication on the profile name (red = expired session; green = probably still valid)
+  if [ -f ${_credentials_file} ] ; then
+    _credentials_file_age=$(($(date +%s) - $(date -r ${_credentials_file} +%s)))
+    if [ ${_credentials_file_age} -lt 3600 ] ; then
+      _session_state_color="\e[42;1m"
+    else
+      _session_state_color="\e[41;1m"
+    fi
+  fi
+  if [[ -z "${AWS_REGION}" ]] ; then
+    _aws_region=" - region:\e[41;93mnot set\e[0m"
+    # Remove the last region file (if we have one):
+    rm -f ${_last_region_file} 2>/dev/null
+  else
+    # Update the last region file if it has a different region in it (or if it doesn't exist):
+    if [[ "$(cat ${_last_region_file} 2>/dev/null)" != "${AWS_REGION}" ]] ; then
+      echo ${AWS_REGION} > ${_last_region_file}
+    fi
+    _aws_region=" - region:\e[1;35m${AWS_REGION}\e[0m"
+  fi
+  if [[ -z "${AWS_PROFILE}" ]] ; then
+    _aws_profile="\e[41;93mnot set\e[0m"
+    # Remove the last profile file (if we have one):
+    rm -f ${_last_profile_file} 2>/dev/null
+  else
+    # Update the last profile file if it has a different profile in it (or if it doesn't exist):
+    if [[ "$(cat ${_last_profile_file} 2>/dev/null)" != "${AWS_PROFILE}" ]] ; then
+      echo ${AWS_PROFILE} > ${_last_profile_file}
+    fi
+    # We need to parse details for the selected profile from the config-file:
+    local _creds_cfg_file=${HOME}/.okta_aws_login_config
+    _aws_profile="${_session_state_color}${AWS_PROFILE}\e[0m"
+    # Find the line number of where the profile section begins in the config-file:
+    local _section_line=$(awk "/\[${AWS_PROFILE}\]/{ print NR }" ${_creds_cfg_file})
+    # Need to list the profile names if the one in $AWS_PROFILE is not found:
+    if [[ "${_section_line}" == "" ]] ; then
+      echo -e "[\e[1;37maws-cli:\e[41;93mprofile '${AWS_PROFILE}' not found in ${_creds_cfg_file}! Please select from the following profiles:\e[0m]"
+      aws_profiles
+      return
+    fi
+    # Find the line where the next section begins:
+    local _next_section_line=$(awk "NR > ${_section_line} && /\[.*\]/{ print NR; exit; }" ${_creds_cfg_file})
+    # There's no output if this was the last section in the file!
+    if [[ "${_next_section_line}" == "" ]] ; then
+      # Get the number of lines on the file instead to get the last line number:
+      _next_section_line=$(wc -l ${_creds_cfg_file} | awk '{ print $1 }')
+    fi
+    # Find the line that has the 'aws_rolename' setting in the active profile section:
+    local _role_line=$(awk "NR > ${_section_line} && NR < ${_next_section_line} && /^aws_rolename/{ print $1 }" ${_creds_cfg_file})
+    # We may not have a rolename in the config-file!
+    if [[ "${_role_line}" == *"arn:aws"* ]] ; then
+      # This looks like a valid arn.  Parse out the AWS account number and IAM Role that will be used:
+      local _account=$(echo ${_role_line} | cut -d":" -f5)
+      local _role=$(echo ${_role_line} | cut -d"/" -f2)
+      # Generate the text that will be used in the prompt:
+      _aws_account=" - account:\e[1;35m${_account}\e[0m"
+      _aws_role=" - role:\e[1;35m${_role}\e[0m"
+    else
+      # We don't have a rolename.
+      # The user needs to select a role when getting new session tokens through gimme-aws-creds.
+      # We may have valid session tokens if the aws credentials file is less than 60 minutes old.
+      # If so, then we should be able to pull the missing fields from the aws cli.
+      local _last_session_details="${HOME}/.aws/.last_session_details"
+      if [ "$(find ${_credentials_file} -mmin -60)" ] ; then
+        # We may have a valid session.
+        # See if we have a session details file that is also less than 60 minutes old.
+        if [ -f ${_last_session_details} ] && [ "$(find ${_last_session_details} -mmin -60)" ] ; then
+          # Yes -> read the fields from the file:
+          _account=$(grep "AWS_ACCOUNT=" ${_last_session_details} | cut -d'=' -f2 2>/dev/null)
+          _role=$(grep "AWS_ROLE=" ${_last_session_details} | cut -d'=' -f2 2>/dev/null)
+        else
+          # No -> try get the data from aws cli and write to file:
+          rm -f ${_last_session_details} 2>/dev/null
+          # Now try to get the missing details from the AWS CLI and write to the last details file:
+          _account=$(aws sts get-caller-identity | jq -r '.Account' 2>/dev/null)
+          _role=$(aws sts get-caller-identity | jq -r '.Arn' | cut -d'/' -f2 2>/dev/null)
+          echo "AWS_ACCOUNT=${_account}" > ${_last_session_details}
+          echo "AWS_ROLE=${_role}" >> ${_last_session_details}
+        fi
+        _aws_account=" - account:\e[41;93m${_account:-"unknown"}\e[0m"
+        _aws_role=" - role:\e[41;93m${_role:-"unknown"}\e[0m"
+        eval "export AWS_ACCOUNT=${_account}"
+        eval "export AWS_ROLE=${_role}"
+      else
+        # The credentials file is older than 1 hour and thus all tokens are expired!
+        rm -f ${_last_session_details} 2>/dev/null
+        _aws_account=" - account:\e[41;93mnot set\e[0m"
+        _aws_role=" - role:\e[41;93mnot set\e[0m"
+      fi
+    fi
+  fi
+  echo -e "[\e[1;37maws-cli:\e[1;35m${_aws_cli}\e[0m${_aws_region} - profile:${_aws_profile}${_aws_account}${_aws_role}]"
+}
+
+#
+# Function for a dynamic Kubernetes prompt
+#
+function k8s_prompt {
+  local _config=~/.kube/config
+  if [ -f $_config ] ; then
+    local _cluster_script_dir="/Users/JCREYF/data/nike/platforms/k8s_profiles"
+    local _cluster_name=$(kubectl config view --minify -o jsonpath='{.clusters[].name}')
+    local _cluster_name_base=$(echo ${_cluster_name} | rev | cut -d'/' -f1 | rev)
+    local _cluster_script_file=$(grep -l "KES_CLUSTER_NAME=\"${_cluster_name_base}\"" ${_cluster_script_dir}/* | head -n1)
+    if [ $? -ne 0 ] || [ -z "${_cluster_script_file}" ] ; then
+      _profile=""
+      echo -e "[\e[41;1mNo k8s profile in ${_cluster_script_dir} for cluster '${_cluster_name_base}'\e[0m]"
+      return
+    fi
+    local _profile=$(basename ${_cluster_script_file})
+    local _profile_name="${_profile%.*}"
+    echo -e "[\e[1;37mK8s Cluster:\e[1;35m${_cluster_name}\e[0m (profile:\e[1;35m${_cluster_script_file}\e[0m)]"
+  fi
+}
+
+#
+# Golang stuff:
+#
+export GOPATH=~/go
+export GOBIN=${GOPATH}/bin/
+export GOPRIVATE=github.com/nike-*/*
+
+## Auto-complete on getAWSToken.sh script (see examples in /etc/bash_completion.d/)
+#_getAWSToken_options='lab preprod prod eap-sbx eap-nonprod eap-prod'
+#complete -W "${_getAWSToken_options}" 'getAWSToken.sh'
+#
+## Auto-complete on getAWSToken.sh script (see examples in /etc/bash_completion.d/)
+#_tf_options='profile lab preprod prod eap-sbx eap-nonprod eap-prod'
+#complete -W "${_tf_options}" 'tf'
+
+## Source in the last selected AWS profile (if set)
+#THIS IS NOW MOVED TO: ~/.aws/aws-ssm-ec2-proxy-command.sh
+#if [[ -f ~/.aws/.last_profile ]] ; then
+#  source ~/.aws/.last_profile
+#fi
+
+# alias listAWSHosts='grep fusionaws.nike.com ~/.bashrc_nike | grep -v grep | grep -ve "^#.*" | grep -v "@" | grep -v sftp | sed "s/.*ssh //g" | sed "s/.*-X //g" | sed "s/\.com.*/.com/g" | sort | uniq'
+# alias listAWSHosts_prd='listAWSHosts | grep p | grep -v "plt\|psq\|q"'
+# alias listAWSHosts_nonprd='listAWSHosts | grep -v "prd\|p[0-9]"'
+
+# # List all hosts that are configured below:
+# #   potential use:
+# #     for host in $(listAWSHosts) ; do echo "host: $host"; ping -c 1 $host 2>&1 >/dev/null ; if [ $? -eq 0 ] ; then scp removeStaleUsers.sh $host:~ ; else echo "down" ; fi ; done
+# # Execute command on accessible Non-Prod hosts:
+# #     for host in $(listAWSHosts_nonprd) ; do echo "host: $host"; ping -c 1 $host 2>&1 >/dev/null ; if [ $? -eq 0 ] ; then ssh ${host} 'ls' ; else echo "down" ; fi ; done
+# # Execute command on accessible QA hosts:
+# #     for host in $(listAWSHosts_nonprd | grep "q[0-9]") ; do echo "host: $host"; ping -c 1 $host 2>&1 >/dev/null ; if [ $? -eq 0 ] ; then echo "ok" ; else echo "down" ; fi ; done
+# # Open a Konsole shell to all running QA hosts in separare tabs:
+# #     _tabs="/tmp/tabs.jc"; rm -f $_tabs 2>&1 >/dev/null; for host in $(listAWSHosts_nonprd | grep "q[0-9]"); do echo "host: $host"; ping -c 1 $host 2>&1 >/dev/null; if [ $? -eq 0 ] ; then echo "title: ${host/.*};; command: ssh ${host}" >> $_tabs; else echo "down"; fi; done; if [ -f $_tabs ] ; then printf "Opening Konsole with tabs %s to host...\n" $(cat $_tabs | wc -l); konsole --tabs-from-file $_tabs; fi
+# # Open a Konsole shell to all running PRD/DR hosts in separare tabs:
+# #     _tabs="/tmp/tabs.jc"; rm -f $_tabs 2>&1 >/dev/null; for host in $(listAWSHosts_prd | grep "prd"); do echo "host: $host"; ping -c 1 $host 2>&1 >/dev/null; if [ $? -eq 0 ] ; then echo "title: ${host/.*};; command: ssh ${host}" >> $_tabs; else echo "down"; fi; done; if [ -f $_tabs ] ; then printf "Opening Konsole with tabs %s to host...\n" $(cat $_tabs | wc -l); konsole --tabs-from-file $_tabs; fi
+# # Open iTerm tabs on Mac (using AppleScript):
+# #   https://iterm2.com/python-api/examples/index.html
+# #   http://iterm.sourceforge.net/scripting.shtml
+# #
+# function openTerminals {
+#   local _env="$1"
+#   local _dir="/tmp/iTerm_tabs"
+#   local _hosts=("")
+#   # Convert to all lowercase in the case:
+#   case "${_env,,}" in
+#     nonprd|nonprod|preprd|preprod)
+#       echo "Non-PRD hosts"
+#       _hosts=$(listAWSHosts_nonprd) 
+#       ;;
+#     sbx)
+#       echo "SBX hosts"
+#       _hosts=$(listAWSHosts_nonprd | grep ".sbx.")
+#       ;;
+#     dev)
+#       echo "DEV hosts"
+#       _hosts=$(listAWSHosts_nonprd | grep ".dev.")
+#       ;;
+#     qa)
+#       echo "QA hosts"
+#       _hosts=$(listAWSHosts_nonprd | grep ".qa.")
+#       ;;
+#     plt)
+#       echo "PLT hosts"
+#       _hosts=$(listAWSHosts_nonprd | grep ".plt.")
+#       ;;
+#     psq)
+#       echo "PSQ hosts"
+#       _hosts=$(listAWSHosts_nonprd | grep ".psq.")
+#       ;;
+#     dr)
+#       echo "DR hosts"
+#       _hosts=$(listAWSHosts_prd | grep "us-east")
+#       ;;
+#     prd|prod)
+#       echo "PRD hosts"
+#       _hosts=$(listAWSHosts_prd | grep "us-west")
+#       ;;
+#     ci)
+#       echo "Jenkins CI hosts"
+#       _hosts=$(listAWSHosts | grep "fusnke.*c.*\..*")
+#       ;;
+#     *)
+#       echo "No idea what hosts you are refering to! (${_env})"    
+#       ;;
+#   esac
+#   # Empty the temp dir if it exists or create it if not:
+#   [ -d ${_dir} ] && rm -f ${_dir}/* 2>&1 >/dev/null || mkdir -p ${_dir}
+#   for host in ${_hosts} ; do
+#     echo "host: $host"
+#     ping -c 1 $host 2>&1 >/dev/null
+#     if [ $? -eq 0 ] ; then
+#       cat <<EOF > ${_dir}/${host/.*}.scpt
+# # AppleScript to open a new iTerm tab and have it ssh into a specific host:
+# tell application "iTerm2"
+#   set newTab to (create tab with default profile in current window)
+#   tell current session of newTab
+#     set name to "${host/.*}"
+#     write text "ssh ${host}"
+#   end tell
+# end tell
+# EOF
+#       else echo "down"
+#     fi
+#   done
+#   if [ "$(ls -A ${_dir}/*.scpt 2>/dev/null)" ] ; then
+#     printf "Opening iTerm with %s tabs to hosts...\n" $(ls ${_dir}/ | wc -l)
+#     for _script in $(ls ${_dir}/*.scpt) ; do
+#       osascript $_script
+#     done
+#   fi
+# }
+
+# Set path to Nike tools:
+PATH=${PATH}:~/data/nike/platforms/nsp1/tools/epctl/
+PATH=${PATH}:~/data/nike/platforms/tools/terraform/
+#PATH=~/.aws:${PATH}
+export PATH
+
+
+# Connecting to an AWS host before Puppet ran and changed users.
+# Hint: need to log on as `ec2-user`, using the `fusion` private key.
+#
+#   ssh -i ~/.ssh/other_keys/EAP-LAB_EC2_KeyPair_fusion.pem ec2-user@10.179.151.21
+#
+
+
+# #
+# # Rundeck hosts:
+# #
+# alias rundeck='ssh us-plap1lrund01.tas.nike.com'
+# alias rundeck_sbx='ssh us-plax1lrund01.tas.nike.com'
+
+
+# #
+# # AWS ZDP:
+# #
+# alias aws_zdp_preprod='export AWS_PROFILE=$_PrePrd ; ssh fusnkepatq01.us-west-2.fusionaws.nike.com'
+# alias aws_zdp_preprod_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkepatq01.us-west-2.fusionaws.nike.com'
+# alias aws_zdp_prod='export AWS_PROFILE=$_Prd ; ssh fusnkepatp01.us-west-2.fusionaws.nike.com'
+# alias aws_zdp_prod_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkepatp01.us-west-2.fusionaws.nike.com'
+# alias aws_zdp_dr='export AWS_PROFILE=$_Prd ; ssh fusnkepatdrp01.us-east-1.fusionaws.nike.com'
+# alias aws_zdp_dr_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkepatdrp01.us-east-1.fusionaws.nike.com'
+
+
+# #
+# # AWS CI hosts:
+# #
+# alias aws_ci_sbx='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmcx201.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_ci_sbx_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmcx201.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_ci_dev='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmcd201.us-west-2.dev.fusionaws.nike.com'
+# alias aws_ci_dev_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmcd201.us-west-2.dev.fusionaws.nike.com'
+# alias aws_ci_qa='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmcq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_ci_qa_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmcq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_ci_prd='export AWS_PROFILE=$_Prd ; ssh -X fusnkeadmcp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_ci_prd_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeadmcp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_ci_dr='export AWS_PROFILE=$_Prd ; ssh -X fusnkeadmcp301.us-east-1.prd.fusionaws.nike.com'
+# alias aws_ci_dr_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmcp301.us-east-1.prd.fusionaws.nike.com'
+
+
+# #
+# # AWS SBX1:
+# #
+# alias aws_x1_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmx101.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmx101.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx101.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx101.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx102.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx102.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx103.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx103.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx104.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x1_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx104.us-west-2.sbx.fusionaws.nike.com'
+
+
+# #
+# # AWS SBX3 (DR in us-east-1):
+# #
+# alias aws_x3_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmx301.us-east-1.sbx.fusionaws.nike.com'
+# alias aws_x3_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmx301.us-east-1.sbx.fusionaws.nike.com'
+# alias aws_x3_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx301.us-east-1.sbx.fusionaws.nike.com'
+# alias aws_x3_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx301.us-east-1.sbx.fusionaws.nike.com'
+# alias aws_x3_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx302.us-east-1.sbx.fusionaws.nike.com'
+# alias aws_x3_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx302.us-east-1.sbx.fusionaws.nike.com'
+
+
+# #
+# # AWS SBX9 (Terraform / Puppet development environment):
+# #
+# alias aws_x9_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmx901.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmx901.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx901.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx901.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx902.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx902.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx903.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx903.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintx904.us-west-2.sbx.fusionaws.nike.com'
+# alias aws_x9_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintx904.us-west-2.sbx.fusionaws.nike.com'
+
+
+# #
+# # AWS DEV1:
+# #
+# alias aws_d1_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmd101.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmd101.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintd101.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintd101.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintd102.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintd102.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintd103.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintd103.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintd104.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintd104.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m5='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintd105.us-west-2.dev.fusionaws.nike.com'
+# alias aws_d1_m5_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintd105.us-west-2.dev.fusionaws.nike.com'
+# # SSH ELB over managed servers:
+# alias aws_d1_sftp='export AWS_PROFILE=$_PrePrd ; ssh sftp.dev.fusionaws.nike.com'
+
+
+# #
+# # AWS QA2
+# #
+# alias aws_q2_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq201.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq202.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq202.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq203.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq203.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq204.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq204.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m5='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq205.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m5_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq205.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m6='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq206.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m6_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq206.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m7='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq207.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m7_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq207.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m8='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq208.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m8_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq208.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m9='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq209.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m9_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq209.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m10='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq210.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m10_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq210.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m11='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq211.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m11_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq211.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m12='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintq212.us-west-2.qa.fusionaws.nike.com'
+# alias aws_q2_m12_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintq212.us-west-2.qa.fusionaws.nike.com'
+# # SSH ELB over managed servers:
+# alias aws_q2_sftp='export AWS_PROFILE=$_PrePrd ; ssh sftp.qa.fusionaws.nike.com'
+
+
+# #
+# # AWS PLT2
+# #
+# alias aws_t2_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadmt201.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadmt201.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt201.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt201.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt202.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt202.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt203.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt203.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt204.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt204.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m5='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt205.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m5_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt205.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m6='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt206.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m6_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt206.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m7='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt207.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m7_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt207.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m8='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt208.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m8_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt208.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m9='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt209.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m9_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt209.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m10='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt210.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m10_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt210.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m11='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt211.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m11_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt211.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m12='export AWS_PROFILE=$_PrePrd ; ssh fusnkeintt212.us-west-2.plt.fusionaws.nike.com'
+# alias aws_t2_m12_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeintt212.us-west-2.plt.fusionaws.nike.com'
+# # SSH ELB over managed servers:
+# alias aws_t2_sftp='export AWS_PROFILE=$_PrePrd ; ssh sftp.plt.fusionaws.nike.com'
+
+
+# #
+# # AWS PRD2:
+# #
+# alias aws_p2_adm='export AWS_PROFILE=$_Prd ; ssh fusnkeadmp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_adm_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeadmp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m1='export AWS_PROFILE=$_Prd ; ssh fusnkeintp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m1_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp201.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m2='export AWS_PROFILE=$_Prd ; ssh fusnkeintp202.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m2_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp202.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m3='export AWS_PROFILE=$_Prd ; ssh fusnkeintp203.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m3_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp203.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m4='export AWS_PROFILE=$_Prd ; ssh fusnkeintp204.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m4_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp204.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m5='export AWS_PROFILE=$_Prd ; ssh fusnkeintp205.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m5_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp205.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m6='export AWS_PROFILE=$_Prd ; ssh fusnkeintp206.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m6_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp206.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m7='export AWS_PROFILE=$_Prd ; ssh fusnkeintp207.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m7_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp207.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m8='export AWS_PROFILE=$_Prd ; ssh fusnkeintp208.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m8_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp208.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m9='export AWS_PROFILE=$_Prd ; ssh fusnkeintp209.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m9_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp209.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m10='export AWS_PROFILE=$_Prd ; ssh fusnkeintp210.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m10_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp210.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m11='export AWS_PROFILE=$_Prd ; ssh fusnkeintp211.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m11_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp211.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m12='export AWS_PROFILE=$_Prd ; ssh fusnkeintp212.us-west-2.prd.fusionaws.nike.com'
+# alias aws_p2_m12_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp212.us-west-2.prd.fusionaws.nike.com'
+
+
+# #
+# # AWS PRD3 (DR in us-east-1):
+# #
+# alias aws_p3_adm='export AWS_PROFILE=$_Prd ; ssh fusnkeadmp301.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_adm_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeadmp301.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m1='export AWS_PROFILE=$_Prd ; ssh fusnkeintp301.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m1_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp301.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m2='export AWS_PROFILE=$_Prd ; ssh fusnkeintp302.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m2_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp302.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m3='export AWS_PROFILE=$_Prd ; ssh fusnkeintp303.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m3_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp303.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m4='export AWS_PROFILE=$_Prd ; ssh fusnkeintp304.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m4_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp304.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m5='export AWS_PROFILE=$_Prd ; ssh fusnkeintp305.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m5_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp305.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m6='export AWS_PROFILE=$_Prd ; ssh fusnkeintp306.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m6_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp306.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m7='export AWS_PROFILE=$_Prd ; ssh fusnkeintp307.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m7_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp307.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m8='export AWS_PROFILE=$_Prd ; ssh fusnkeintp308.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m8_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp308.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m9='export AWS_PROFILE=$_Prd ; ssh fusnkeintp309.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m9_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp309.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m10='export AWS_PROFILE=$_Prd ; ssh fusnkeintp310.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m10_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp310.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m11='export AWS_PROFILE=$_Prd ; ssh fusnkeintp311.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m11_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp311.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m12='export AWS_PROFILE=$_Prd ; ssh fusnkeintp312.us-east-1.prd.fusionaws.nike.com'
+# alias aws_p3_m12_rescue='export AWS_PROFILE=$_Prd ; ssh fusion_rescue@fusnkeintp312.us-east-1.prd.fusionaws.nike.com'
+
+
+# #
+# # AWS PSQ2:
+# #
+# alias aws_s2_adm='export AWS_PROFILE=$_PrePrd ; ssh fusnkeadms201.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_adm_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeadms201.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m1='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints201.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m1_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints201.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m2='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints202.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m2_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints202.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m3='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints203.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m3_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints203.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m4='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints204.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m4_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints204.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m5='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints205.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m5_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints205.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m6='export AWS_PROFILE=$_PrePrd ; ssh fusnkeints206.us-west-2.psq.fusionaws.nike.com'
+# alias aws_s2_m6_rescue='export AWS_PROFILE=$_PrePrd ; ssh fusion_rescue@fusnkeints206.us-west-2.psq.fusionaws.nike.com'
+
+
+# #
+# # Puppet Masters:
+# #
+# #alias aws_puppet='ssh ec2-user@puppet.us-west-2.fusionaws.nike.com'
+# alias aws_puppet_rescue='ssh fusion_rescue@puppet.us-west-2.fusionaws.nike.com'
+# alias aws_puppet=aws_puppet_rescue
+# #alias aws_puppet_dr='ssh ec2-user@puppet.us-east-1.fusionaws.nike.com'
+# alias aws_puppet_dr_rescue='ssh fusion_rescue@puppet.us-east-1.fusionaws.nike.com'
+# alias aws_puppet_dr=aws_puppet_dr_rescue
+# alias aws_puppet_old='ssh centos@pemmp001.us-west-2.puppet.nike.com'
+# alias aws_puppet_old_dr='ssh centos@pemmp101.us-east-1.puppet.nike.com'
+
+#
+# AWS CLI and gimme-aws-creds CLI stuff:
+#   https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+#   https://github.com/jcreyf/gimme-aws-creds/
+#   https://github.com/Nike-Inc/gimme-aws-creds
+#
+
+# Names of AWS_PROFILEs in the Okta config-file:
+# /> grep "\[" ~/.okta_aws_login_config | sed 's/[][]//g'
+#   waffle
+#   waffle-nsp
+#   eap-preprod
+#   eap-prod
+# Names of profiles in AWS credentials:
+# /> grep "\[" ~/.aws/credentials | sed 's/[][]//g'
+#   waffle-nsp
+#   default 
+# Set whatever profile we had set before:
+export AWS_PROFILE=$(cat ${HOME}/.aws/.last_profile 2>/dev/null)
+export AWS_REGION=$(cat ${HOME}/.aws/.last_region 2>/dev/null)
+
+# List all the AWS profiles that we have configured in gimme-aws-creds:
+aws_profiles()
+{
+  local _profiles=$(grep cred_profile ~/.okta_aws_login_config | grep -v default | cut -d' ' -f3 | sort -h)
+  for _profile in ${_profiles[@]} ; do
+    echo "export AWS_PROFILE=${_profile}"
+  done
+  printf "\nexport AWS_REGION=us-west-2\nexport AWS_REGION=us-east-1\n\n"
+}
+alias awsprofiles=aws_profiles
+
+# Get AWS credential to locally test Cerberus SDK code 
+# (the SDK expects a 'DEFAULT' credential in "~/.aws/credentials" and we need to get it for an IAM ARN that has permissions on the Cerberus SDB that we're trying to work with)
+alias cerberuscreds="gimme-aws-creds --roles arn:aws:iam::497349380054:role/NIKE.SSO.AdminRole"
+
+# NSP1 K8s aliases:
+alias nsp1_profiles="cd /Users/JCREYF/data/nike/platforms/nsp1/profiles/"
+alias nsp1_clusters="grep -l 'KES_CLUSTER_NAME=\"' /Users/JCREYF/data/nike/platforms/nsp1/profiles/* | rev | cut -d'/' -f1 | rev | cut -d'.' -f1"
+alias nsp1_sbx_west_prs="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_sbx_west_prs.profile"
+alias nsp1_dev_west_gcl="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_dev_west_gcl.profile"
+alias nsp1_dev_west_max="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_dev_west_max.profile"
+alias nsp1_dev_west_qac="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_dev_west_qac.profile"
+alias nsp1_dev_east_drc="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_dev_east_drc.profile"
+alias nsp1_qa_west_gcl="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_qa_west_gcl.profile"
+alias nsp1_prd_west_gcl="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_prd_west_gcl.profile"
+alias nsp1_prd_west_gcl2="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_prd_west_gcl2.profile"
+alias nsp1_prd_east_drc="source /Users/JCREYF/data/nike/platforms/nsp1/profiles/nsp1_prd_east_drc.profile"
+
+# App to generate a Bearer token for accessing NSP Kong endpoints for a given environment:
+#   https://github.com/nike-streaming-platform/nsp/tree/development/scripts/utils/kong/okta
+# pip install -r /Users/JCREYF/data/nike/git/nike-streaming-platform/nsp/scripts/utils/kong/okta/requirements.txt
+alias nsp1_bearertoken_dev="python /Users/JCREYF/data/nike/git/nike-streaming-platform/nsp/scripts/utils/kong/okta/gimme_nsp_token.py --export --environment dev"
+alias nsp1_bearertoken_qa="python /Users/JCREYF/data/nike/git/nike-streaming-platform/nsp/scripts/utils/kong/okta/gimme_nsp_token.py --export --environment qa"
+alias nsp1_bearertoken_prd="python /Users/JCREYF/data/nike/git/nike-streaming-platform/nsp/scripts/utils/kong/okta/gimme_nsp_token.py --export --environment prd"
+
+# Generic aliases:
+alias cdgit='cd ~/data/nike/git/'
+alias cdfus='cd ~/data/nike/git/nike-fusion/'
+alias cdme='cd ~/data/nike/git/jcreyf_nike/'
+alias cdtf='cd ~/data/nike/git/jcreyf_nike/NSP/nsp3/KafkaStreams/'
+alias cdnsp1='cd ~/data/nike/git/nike-streaming-platform/'
+alias cdnsp3='cd ~/data/nike/git/nike-near-real-time/'
+alias cdnmk='cd ~/data/nike/git/nike-managed-kafka/'
+
+# Alias to OpenLens app:
+alias lens='/Applications/Lens.app/Contents/MacOS/Lens'
+
+# NSP3 specific stuff:
+export NSP3_API_URL_LOCAL=http://localhost:8080
+export NSP3_API_URL_DEV=https://api.nrtd-dev.platforms.nike.com
+export NSP3_API_URL_PRD=https://api.nrtd.platforms.nike.com
+export NSP3_API_URL=${NSP3_API_URL_PRD}
+
+export NSP3_ENV_DEV="dev"
+export NSP3_ENV_STAGING="staging"
+export NSP3_ENV_PRD="production"
+export NSP3_ENV=${NSP3_ENV_PRD}

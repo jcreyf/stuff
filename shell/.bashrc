@@ -1,4 +1,4 @@
-# .bashrc
+#!/bin/bash
 
 #------------------
 # IMPORTANT NOTE WHEN RUNNING BASH ON MAC:
@@ -26,6 +26,15 @@ if [ -f /etc/bashrc ]; then
   . /etc/bashrc
 fi
 
+# Enable bash completion (macOS with Homebrew)
+if [ -f /opt/homebrew/etc/profile.d/bash_completion.sh ]; then
+  . /opt/homebrew/etc/profile.d/bash_completion.sh
+elif [ -f /usr/local/etc/profile.d/bash_completion.sh ]; then
+  . /usr/local/etc/profile.d/bash_completion.sh
+elif [ -f /etc/bash_completion ]; then
+  . /etc/bash_completion
+fi
+
 # Uncomment the following line if you don't like systemctl's auto-paging feature:
 # export SYSTEMD_PAGER=
 
@@ -38,8 +47,10 @@ fi
 case $- in
 *i*)
   # This is an interactive shell.  Source in the whole sjaboem (set up in different file) ...
-  . ~/.bashrc_jcreyf
-  . ~/.bashrc_git
+  source ~/.bashrc_jcreyf
+  source ~/.bashrc_git
+  source ~/.bashrc_nike
+  source ~/.bashrc_containers
   ;;
 esac
 
@@ -84,18 +95,48 @@ export LSCOLORS=Gxfxcxdxbxegedabagacad
 #ex=34;00;31:\
 #*.log=38;05;9"
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/jcreyf/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/home/jcreyf/anaconda3/etc/profile.d/conda.sh" ]; then
-        . "/home/jcreyf/anaconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/home/jcreyf/anaconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
+# Load git auto-complete:
+source /Users/jcreyf/data/nike/platforms/tools/git-completion.sh
 
+# Loading gimme-aws-creds CLI autocomplete:
+source /Users/jcreyf/data/nike/platforms/tools/gimme-aws-creds-autocomplete.sh
+
+# Loading Cerberus CLI autocomplete: (https://github.com/nike-zookeepers-cerberus/cerberus-cli)
+source /Users/jcreyf/data/nike/platforms/tools/cerberus-completion.sh
+
+# Loading kubectl autocomplete:
+if command -v kubectl &> /dev/null; then
+  eval "$(kubectl completion bash)"
+fi
+
+# Loading NSP1 epctl autocomplete:
+# if command -v epctl &> /dev/null; then
+#   eval "$(epctl completion bash)"
+# fi
+
+# Loading Helm CLI autocomplete:
+if command -v helm &> /dev/null; then
+  eval "$(helm completion bash)"
+fi
+
+# Loading Kafka CLI autocomplete: (https://github.com/birdayz/kaf)
+if command -v kaf &> /dev/null; then
+  eval "$(kaf completion bash)"
+fi
+
+# Loading Terraform CLI autocomplete:
+if command -v tf &> /dev/null; then
+  eval "$(tf completion bash)"
+fi
+
+# Loading OAuth get_token CLI autocomplete:
+alias get_token="/Users/jcreyf/data/nike/git/jcreyf_nike/scripts/get_token.sh"
+if command -v get_token &> /dev/null; then
+  eval "$(get_token completion bash)"
+fi
+
+# Loading gimme-creds CLI autocomplete:
+alias gimme-creds="/Users/jcreyf/data/nike/git/jcreyf_nike/scripts/gimme-creds.sh"
+if command -v gimme-creds &> /dev/null; then
+  eval "$(gimme-creds completion bash)"
+fi

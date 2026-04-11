@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 #
 # .bashrc is getting sourced in for all types of shells.
 # .bash_profile is only getting sourced in as part of a user logging on to the system.
@@ -22,7 +22,7 @@
 #
 # Function for a dynamic Python Anaconda prompt:
 #
-function python_prompt() {
+function python_prompt {
 #   # Only continue if the current directory is under git control
 #   if [[ ${CONDA_DEFAULT_ENV} != "" ]] ; then
 #     local _pythonVer=$(python --version)
@@ -35,8 +35,17 @@ function python_prompt() {
 #   fi
 
   local _pythonVer=$(python --version)
-  local _env=""
-  echo "[\e[1;37mPython environment:${_env}- ${_pythonVer}]\n"
+  local _env
+
+  # Check if current directory has env subdirectory with pyvenv.cfg
+  if [[ -d "env" && -f "env/pyvenv.cfg" ]]; then
+    # Parse version from pyvenv.cfg
+    local _pythonEnvVer=$(grep "^version = " env/pyvenv.cfg | cut -d' ' -f3)
+    _env="\e[92m✓\e[0m v${_pythonEnvVer} "
+  else
+    _env="\e[91m✗\e[0m "
+  fi
+  echo -e "[\e[1;37mPython environment:${_env}- ${_pythonVer}]"
 }
 
 #
@@ -49,7 +58,7 @@ function python_prompt() {
 # Passing "all" as argument ('edit all') will translate into: 'edit "*"'
 # We have to open Geanny in a different way on MacOS since that seems to behave differently.
 #
-function edit() {
+function edit {
   local _args="$*"
   local _OS="$(uname -s)"
   # if '"all" is passed, then replace with "*":
@@ -59,7 +68,7 @@ function edit() {
   fi
   local _filesToOpen=$_args
   # See if we got an asterisk in the argument:
-  if [[ "$_args" =~ .*"*".* ]] ; then
+  if [[ "$_args" == *"*"* ]] ; then
     echo "selecting files..."
     _filesToOpen=$(find . -type f -name "$_args")
   fi
@@ -73,7 +82,7 @@ function edit() {
   fi
   # Piping all output from geany to null since we were getting quite a few Gtk-WARNING messages at some point that were out of our control:
   ${DEBUG:-false} && echo "$_geanyApp ${_filesToOpen}"
-  eval $_geanyApp $_filesToOpen &>/dev/null &
+  eval "$_geanyApp $_filesToOpen" &>/dev/null &
 }
 
 
@@ -81,32 +90,47 @@ function edit() {
 # Function for a dynamic directory prompt (because of Mac OS showing a ~ for home and not the full home directory)
 # (this function is called and the prompt is updated each time we cd into another directory)
 #
-dir_prompt() {
+function dir_prompt {
   echo "\e[1;33m${MACHINE}:$(pwd)/\e[0m"
 }
 
 #-----
-# Set the prompt:
+# Set the prompt (ZSH version):
 MACHINE=$(hostname -f)
 ORIGINAL_USER=$(who am i | awk '{print $1}')
 CURRENT_USER=$(whoami)
 
-# The prompt needs to be regenerated each time we change directories.
-# Turns out this is best done through the PROMPT_COMMAND env variable since we apparently lose dynamic formatting capabilities if only using PS1
+# ZSH uses PS2 for continuation prompt
 export PS2='++> '
-export PROMPT_COMMAND='PS1="\n[$(ps -p $$ -o comm=)] $(dir_prompt)\n$(git_prompt)$(terraform_prompt)$(aws_prompt)$(k8s_prompt)$(python_prompt)${ORIGINAL_USER} as ${CURRENT_USER}> "'
 
-# Also set the prompt to save all my executed commands per month in ~/.bash-history-YYYYMM.log
-# This command:
-#   /> history 1
-# returns something like:
-#     1029  My command
-# We need to remove that 1st column, which is a counter.
-# Remove the prepending spaces; then cut out the 1st field up to the 1st space; then remove potential more spaces in front of the command.
-#   /> history 1 | sed 's/ //' | cut -d' ' -f2- | sed 's/ //'
-# returns:
-#   My command
-export PROMPT_COMMAND=${PROMPT_COMMAND}' ; if [ "$(id -u)" -ne 0 ]; then echo "$(date "+%Y-%m-%d.%H:%M:%S"),$(history 1 | sed "s/ //" | cut -d" " -f2- | sed "s/ //")" >> ~/.bash-history-$(date "+%Y-%m").log; fi'
+# ZSH precmd function - runs before each prompt display
+# This replaces PROMPT_COMMAND from bash
+precmd() {
+    # Set the prompt dynamically
+    local p="$(python_prompt)"
+    local t="$(terraform_prompt)"
+    local a="$(aws_prompt)"
+    local g="$(git_prompt)"
+    local k="$(k8s_prompt)"
+
+    # Build PS1 conditionally - only add sections that have content
+    PS1=$'\n'"[$(ps -p $$ -o comm=)] $(dir_prompt)"$'\n'
+    [[ -n "$g" ]] && PS1+="${g}"$'\n'
+    [[ -n "$t" ]] && PS1+="${t}"$'\n'
+    [[ -n "$a" ]] && PS1+="${a}"$'\n'
+    [[ -n "$k" ]] && PS1+="${k}"$'\n'
+    [[ -n "$p" ]] && PS1+="${p}"$'\n'
+    PS1+="${ORIGINAL_USER} as ${CURRENT_USER}> "
+
+    # Log command history (ZSH version)
+    # In ZSH, we use 'fc -ln -1' to get the last command without line numbers
+    if [ "$(id -u)" -ne 0 ]; then
+        local last_command=$(fc -ln -1 | sed 's/^[[:space:]]*//')
+        if [ -n "$last_command" ]; then
+            echo "$(date "+%Y-%m-%d.%H:%M:%S"),$last_command" >> ~/.zsh-history-$(date "+%Y-%m").log
+        fi
+    fi
+}
 #
 # End of prompt
 #------
@@ -149,6 +173,7 @@ PATH=${PATH}:/Applications/Geany.app/Contents/MacOS
 PATH=~/Documents/scripts:${PATH}
 PATH=/Users/JCREYF/data/scripts:${PATH}
 PATH=${PATH}:~/.joplin-bin/bin/
+PATH=${PATH}:${HOME}/data/_tools/flutter/bin
 export PATH
 
 #
@@ -170,8 +195,8 @@ export PATH
 # Command to kill processes based on name (or parts of name). [ex. 'dood firefox' to kill all firefox processes]
 # This is declared as a function instead of an alias because we need to pass in an argument during runtime ($@).
 # Using $@ in an alias will get evaluated at the time the alias is created and not at runtime!
-function dood() { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 | xargs kill ;} 
-function dood_toon() { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 ;} 
+function dood { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 | xargs kill ;} 
+function dood_toon { ps -e -o pid,comm,args | grep -v grep | sed 's/^[ ]*//g' | grep -i "$@" | cut -d' ' -f1 ;} 
 
 # Divide 2 numbers at the command line and display decimals
 #alias div='echo $1 / $2 | bc -l'
@@ -215,7 +240,7 @@ alias cdme2='cd ~/data/jcreyf/git/jcreyf/'
 
 # Grep wrapper to search for a string case-insensitive recursively in all files in the current directory and sub-directories
 # Exclude binary files; xml and html files from the results:
-grepg() {
+function grepg {
   printf "Recursive case-insensitive search (excluding binary, xml and html files):\n  -> directory: %s\n  -> search string: '\e[41;93m%s\e[0m'\n\n" "$PWD" "$1"
   # Running grep twice to get proper color highlighting of the search string (the grep that removes elements is also removing the color codes):
   grep -Ri "$1" * | grep -vi "binary\|xml\|html" | grep --color -i "$1"
@@ -263,7 +288,3 @@ export PYENV_ROOT=$HOME/.pyenv
 export PATH=$PYENV_ROOT/bin:$PATH
 eval "$(pyenv init --path)"
 eval "$(pyenv init -)"
-
-# Java JDKs managed through the 'sdkman'.
-# Source in the sdkman-init script to get access to the sdk cli:
-source "/Users/JCREYF/.sdkman/bin/sdkman-init.sh"

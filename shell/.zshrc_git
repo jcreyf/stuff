@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 #
 # Download all repos in an org:
@@ -9,7 +9,7 @@
 #
 # Function for a dynamic Git prompt:
 #
-function git_prompt() {
+function git_prompt {
   local _url=$(git config --get remote.origin.url 2>/dev/null)
   # Only continue if the current directory is under git control
   if [[ ${_url} != "" ]] ; then
@@ -18,13 +18,13 @@ function git_prompt() {
     # Remove potential userID and developer token:
     _url=$(echo $_url | sed 's|https://.*@|https://|g')
     local _branch=$(git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
-    if [ "${_branch}" == "master" ] ; then
+    if [[ "${_branch}" == "master" || "${_branch}" == "main" ]] ; then
       _branch="\e[41;93m ${_branch} \e[0m"
     else
       _branch="\e[1;35m ${_branch} \e[0m"
     fi
     local _tag=$(git describe 2>/dev/null)
-    echo "[\e[1;37mGit -> \e[90;3m${_url}\e[0m [branch:${_branch}- tag: ${_tag}]\n"
+    echo -e "[\e[1;37mGit -> \e[90;3m${_url}\e[0m [branch:${_branch}- tag: ${_tag}]"
   fi
 }
 
