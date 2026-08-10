@@ -3,7 +3,7 @@
 #
 # Download all repos in an org:
 #
-#   _CTX=orgs ; _ORG=nike-near-real-time ; _PAGE=1 ; _TOKEN="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" ; curl -s -H "Authorization: token ${_TOKEN}" "https://api.github.com/${_CTX}/${_ORG}/repos?per_page=100&page=${_PAGE}" | jq '.[].clone_url' | xargs -L1 git clone
+#   _CTX=orgs ; _ORG=nike-near-real-time ; _PAGE=1 ; _TOKEN="ghp_svf9..QeXf" ; curl -s -H "Authorization: token ${_TOKEN}" "https://api.github.com/${_CTX}/${_ORG}/repos?per_page=100&page=${_PAGE}" | jq '.[].clone_url' | xargs -L1 git clone
 #
 
 #
