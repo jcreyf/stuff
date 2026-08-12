@@ -1,1 +1,1 @@
-MacroDroid macros on Samsung table 9.
+MacroDroid macros on Samsung tablet 9.
