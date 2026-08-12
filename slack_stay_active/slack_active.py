@@ -72,6 +72,8 @@
 #                                                                              Are you offline?            #
 # ======================================================================================================== #
 # ToDo:
+#   - do not check for a running instance if the '--encrypt' flag is used to encrypt a password
+#   - the retry flag should be reset after a few hours
 #   - don't send messages outside the online hours!!!
 #   - the Okta client sometimes asks to select one of three numbers to validate your authentication.
 #     the web page then probable shows the correct number to select.
